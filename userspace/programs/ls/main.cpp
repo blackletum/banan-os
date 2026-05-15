@@ -185,9 +185,14 @@ int list_directory(const BAN::String& path, Config config)
 		return 2;
 	}
 
+	const bool is_directory = S_ISDIR(st.st_mode);
+
+	const size_t block_size = st.st_blksize;
+	size_t blocks_used = 0;
+
 	int ret = 0;
 
-	if (!S_ISDIR(st.st_mode))
+	if (!is_directory)
 	{
 		MUST(entries.emplace_back(path, st, BAN::String()));
 		if (S_ISLNK(st.st_mode))
@@ -230,6 +235,8 @@ int list_directory(const BAN::String& path, Config config)
 				ret = 1;
 				continue;
 			}
+
+			blocks_used += st.st_blocks;
 
 			MUST(entries.emplace_back(BAN::StringView(dirent->d_name), st, BAN::String()));
 			if (S_ISLNK(st.st_mode))
@@ -351,6 +358,14 @@ int list_directory(const BAN::String& path, Config config)
 		}
 
 		MUST(full_entries.push_back(BAN::move(full_entry)));
+	}
+
+	if (is_directory)
+	{
+		if (config.human_readable)
+			printf("total: %s\n", build_size_string(blocks_used * block_size, config).data());
+		else
+			printf("total: %zu\n", blocks_used);
 	}
 
 	for (const auto& full_entry : full_entries)
