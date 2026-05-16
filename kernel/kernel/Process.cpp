@@ -3334,20 +3334,24 @@ namespace Kernel
 		if (m_threads.size() == 1)
 			return sys_exit(0);
 
-		TRY(m_exited_pthreads.emplace_back(Thread::current().tid(), value));
+		auto& thread = Thread::current();
+		if (!thread.is_detached())
+		{
+			TRY(m_exited_pthreads.emplace_back(thread.tid(), value));
+			m_pthread_exit_blocker.unblock();
+		}
 
-		m_pthread_exit_blocker.unblock();
 		m_process_lock.unlock();
-		Thread::current().on_exit();
+		thread.on_exit();
 
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::ErrorOr<long> Process::sys_pthread_join(pthread_t thread, void** user_value)
+	BAN::ErrorOr<long> Process::sys_pthread_join(pthread_t tid, void** user_value)
 	{
 		LockGuard _(m_process_lock);
 
-		if (thread == Thread::current().tid())
+		if (tid == Thread::current().tid())
 			return BAN::Error::from_errno(EINVAL);
 
 		const auto check_thread =
@@ -3355,13 +3359,10 @@ namespace Kernel
 			{
 				for (size_t i = 0; i < m_exited_pthreads.size(); i++)
 				{
-					if (m_exited_pthreads[i].thread != thread)
+					if (m_exited_pthreads[i].thread != tid)
 						continue;
-
 					void* ret = m_exited_pthreads[i].value;
-
 					m_exited_pthreads.remove(i);
-
 					return ret;
 				}
 
@@ -3379,10 +3380,18 @@ namespace Kernel
 
 			{
 				bool found = false;
-				for (auto* _thread : m_threads)
-					if (_thread->tid() == thread)
-						found = true;
+				bool joinable = false;
+				for (auto* thread : m_threads)
+				{
+					if (thread->tid() != tid)
+						continue;
+					found = true;
+					joinable = !thread->is_detached();
+					break;
+				}
 				if (!found)
+					return BAN::Error::from_errno(ESRCH);
+				if (!joinable)
 					return BAN::Error::from_errno(EINVAL);
 			}
 
@@ -3419,6 +3428,24 @@ namespace Kernel
 				.si_band = 0,
 				.si_value = {},
 			});
+			return 0;
+		}
+
+		return BAN::Error::from_errno(ESRCH);
+	}
+
+	BAN::ErrorOr<long> Process::sys_pthread_detach(pthread_t tid)
+	{
+		LockGuard _(m_process_lock);
+
+		for (auto* thread : m_threads)
+		{
+			if (thread->tid() != tid)
+				continue;
+			if (thread->is_detached())
+				return BAN::Error::from_errno(EINVAL);
+			thread->detach();
+			m_pthread_exit_blocker.unblock();
 			return 0;
 		}
 

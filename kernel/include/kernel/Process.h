@@ -214,6 +214,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_pthread_join(pthread_t thread, void** value);
 		BAN::ErrorOr<long> sys_pthread_self();
 		BAN::ErrorOr<long> sys_pthread_kill(pthread_t thread, int signal);
+		BAN::ErrorOr<long> sys_pthread_detach(pthread_t thread);
 
 		BAN::ErrorOr<long> sys_clock_gettime(clockid_t, timespec*);
 

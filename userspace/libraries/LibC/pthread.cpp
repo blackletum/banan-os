@@ -18,6 +18,7 @@
 struct pthread_trampoline_info_t
 {
 	struct uthread* uthread;
+	bool detached;
 	void* (*start_routine)(void*);
 	void* arg;
 };
@@ -71,6 +72,8 @@ extern "C" void _pthread_trampoline_cpp(void* arg)
 #endif
 	free(arg);
 	signal(SIGCANCEL, &_pthread_cancel_handler);
+	if (info.detached)
+		pthread_detach(info.uthread->id);
 	pthread_exit(info.start_routine(info.arg));
 	ASSERT_NOT_REACHED();
 }
@@ -257,8 +260,6 @@ int pthread_attr_setdetachstate(pthread_attr_t* attr, int detachstate)
 	switch (detachstate)
 	{
 		case PTHREAD_CREATE_DETACHED:
-			dwarnln("TODO: pthread_attr_setdetachstate");
-			return ENOTSUP;
 		case PTHREAD_CREATE_JOINABLE:
 			attr->detachstate = detachstate;
 			return 0;
@@ -386,6 +387,7 @@ int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __rest
 
 	*info = {
 		.uthread = nullptr,
+		.detached = attr ? (attr->detachstate == PTHREAD_CREATE_DETACHED) : false,
 		.start_routine = start_routine,
 		.arg = arg,
 	};
@@ -448,9 +450,7 @@ pthread_create_error:
 
 int pthread_detach(pthread_t thread)
 {
-	(void)thread;
-	dwarnln("TODO: pthread_detach");
-	return ENOTSUP;
+	return syscall(SYS_PTHREAD_DETACH, thread);
 }
 
 void pthread_exit(void* value_ptr)
