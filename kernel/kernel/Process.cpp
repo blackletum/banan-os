@@ -1765,12 +1765,13 @@ namespace Kernel
 		TRY(read_from_user(user_message, &message, sizeof(msghdr)));
 
 		BAN::Vector<MemoryRegion*> regions;
+		TRY(regions.reserve(!!message.msg_name + !!message.msg_control + !!message.msg_iov));
+
 		BAN::ScopeGuard _([&regions] {
 			for (auto* region : regions)
 				region->unpin();
 		});
 
-		// FIXME: this can leak memory if push to regions fails but pinning succeeded
 		if (message.msg_name)
 			TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_name, message.msg_namelen, true))));
 		if (message.msg_control)
@@ -1778,6 +1779,7 @@ namespace Kernel
 		if (message.msg_iov)
 		{
 			TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_iov, message.msg_iovlen * sizeof(iovec), true))));
+			TRY(regions.reserve(regions.size() + message.msg_iovlen));
 			for (int i = 0; i < message.msg_iovlen; i++)
 				TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_iov[i].iov_base, message.msg_iov[i].iov_len, true))));
 		}
@@ -1795,6 +1797,8 @@ namespace Kernel
 		TRY(read_from_user(user_message, &message, sizeof(msghdr)));
 
 		BAN::Vector<MemoryRegion*> regions;
+		TRY(regions.reserve(!!message.msg_name + !!message.msg_control + !!message.msg_iov));
+
 		BAN::ScopeGuard _([&regions] {
 			for (auto* region : regions)
 				region->unpin();
@@ -1807,6 +1811,7 @@ namespace Kernel
 		if (message.msg_iov)
 		{
 			TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_iov, message.msg_iovlen * sizeof(iovec), false))));
+			TRY(regions.reserve(regions.size() + message.msg_iovlen));
 			for (int i = 0; i < message.msg_iovlen; i++)
 				TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_iov[i].iov_base, message.msg_iov[i].iov_len, false))));
 		}
