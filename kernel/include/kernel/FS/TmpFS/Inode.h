@@ -82,6 +82,29 @@ namespace Kernel
 		friend class TmpInode;
 	};
 
+	// NOTE: this is just a dummy, when opening a fifo a pipe is created
+	class TmpFIFOInode : public TmpInode
+	{
+	public:
+		static BAN::ErrorOr<BAN::RefPtr<TmpFIFOInode>> create_new(TmpFileSystem&, mode_t, uid_t, gid_t);
+		~TmpFIFOInode();
+
+	protected:
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override { return BAN::Error::from_errno(ENODEV); }
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override { return BAN::Error::from_errno(ENODEV); }
+		virtual BAN::ErrorOr<void> truncate_impl(size_t) override { return BAN::Error::from_errno(ENODEV); }
+
+		virtual bool can_read_impl() const override { return false; }
+		virtual bool can_write_impl() const override { return false; }
+		virtual bool has_error_impl() const override { return false; }
+		virtual bool has_hungup_impl() const override { return false; }
+
+	private:
+		TmpFIFOInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
+
+		friend class TmpInode;
+	};
+
 	class TmpSocketInode : public TmpInode
 	{
 	public:
