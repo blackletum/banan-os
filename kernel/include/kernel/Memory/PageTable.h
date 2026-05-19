@@ -15,6 +15,12 @@ namespace Kernel
 	};
 
 	template<typename F>
+	concept with_per_cpu_fast_page_callback = requires(F func, void* addr)
+	{
+		requires BAN::is_same_v<decltype(func(addr)), void>;
+	};
+
+	template<typename F>
 	concept with_fast_page_callback_error = requires(F func)
 	{
 		requires BAN::is_same_v<decltype(func()), BAN::ErrorOr<void>>;
@@ -47,6 +53,8 @@ namespace Kernel
 
 		static constexpr bool full_tlb_flush_threshold = 32;
 
+		static constexpr size_t reserved_fast_pages = 0x10;
+
 	public:
 		static void initialize_fast_page();
 		static void initialize_and_load();
@@ -72,6 +80,18 @@ namespace Kernel
 			map_fast_page(paddr);
 			callback();
 			unmap_fast_page();
+		}
+
+		template<with_per_cpu_fast_page_callback F>
+		static void with_per_cpu_fast_page(paddr_t paddr, F callback)
+		{
+			const auto state = Processor::get_interrupt_state();
+			Processor::set_interrupt_state(InterruptState::Disabled);
+			const size_t index = Processor::current_index() + reserved_fast_pages;
+			void* addr = map_fast_page(index, paddr);
+			callback(addr);
+			unmap_fast_page(index);
+			Processor::set_interrupt_state(state);
 		}
 
 		template<with_fast_page_callback_error F>

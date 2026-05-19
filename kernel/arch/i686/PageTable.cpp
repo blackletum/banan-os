@@ -258,7 +258,11 @@ namespace Kernel
 
 		ASSERT(index < 512);
 		ASSERT(s_fast_page_pt);
-		ASSERT(s_fast_page_lock.current_processor_has_lock());
+
+		if (index < reserved_fast_pages)
+			ASSERT(s_fast_page_lock.current_processor_has_lock());
+		else
+			ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
 		ASSERT(!(s_fast_page_pt[index] & Flags::Present));
 		s_fast_page_pt[index] = paddr | Flags::ReadWrite | Flags::Present;
@@ -272,7 +276,11 @@ namespace Kernel
 	{
 		ASSERT(index < 512);
 		ASSERT(s_fast_page_pt);
-		ASSERT(s_fast_page_lock.current_processor_has_lock());
+
+		if (index < reserved_fast_pages)
+			ASSERT(s_fast_page_lock.current_processor_has_lock());
+		else
+			ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
 		ASSERT((s_fast_page_pt[index] & Flags::Present));
 		s_fast_page_pt[index] = 0;
