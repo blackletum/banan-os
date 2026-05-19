@@ -351,6 +351,51 @@ namespace Kernel
 		handle_smp_messages();
 	}
 
+	void Processor::load_segments()
+	{
+		load_fsbase();
+		load_gsbase();
+	}
+
+	void Processor::load_fsbase()
+	{
+		const auto addr = scheduler().current_thread().get_fsbase();
+#if ARCH(x86_64)
+		const uint32_t addr_hi = addr >> 32;
+		const uint32_t addr_lo = addr & 0xFFFFFFFF;
+		asm volatile("wrmsr" :: "d"(addr_hi), "a"(addr_lo), "c"(MSR_IA32_FS_BASE));
+#elif ARCH(i686)
+		gdt().set_fsbase(addr);
+#endif
+	}
+
+	void Processor::load_gsbase()
+	{
+		const auto addr = scheduler().current_thread().get_gsbase();
+#if ARCH(x86_64)
+		const uint32_t addr_hi = addr >> 32;
+		const uint32_t addr_lo = addr & 0xFFFFFFFF;
+		asm volatile("wrmsr" :: "d"(addr_hi), "a"(addr_lo), "c"(MSR_IA32_KERNEL_GS_BASE));
+#elif ARCH(i686)
+		gdt().set_gsbase(addr);
+#endif
+	}
+
+	void Processor::lock_tlb_lock()
+	{
+		bool expected = false;
+		while (!m_tlb_lock.compare_exchange(expected, true, BAN::MemoryOrder::memory_order_acquire))
+		{
+			__builtin_ia32_pause();
+			expected = false;
+		}
+	}
+
+	void Processor::unlock_tlb_lock()
+	{
+		m_tlb_lock.store(false, BAN::MemoryOrder::memory_order_release);
+	}
+
 	void Processor::handle_smp_messages()
 	{
 		auto state = get_interrupt_state();
@@ -386,10 +431,7 @@ namespace Kernel
 			switch (message->type)
 			{
 				case SMPMessage::Type::FlushTLB:
-					if (message->flush_tlb.page_table && message->flush_tlb.page_table != processor.m_current_page_table)
-						break;
-					PageTable::current().invalidate_range(message->flush_tlb.vaddr, message->flush_tlb.page_count, false);
-					break;
+					ASSERT_NOT_REACHED();
 				case SMPMessage::Type::NewThread:
 					processor.m_scheduler->add_thread(message->new_thread);
 					break;
@@ -420,37 +462,30 @@ namespace Kernel
 			last_handled->next = processor.m_smp_free;
 		}
 
+		{
+			processor.lock_tlb_lock();
+			const size_t tlb_entry_count = processor.m_tlb_entry_count;
+			const auto tlb_entries = processor.m_tlb_entries;
+			const bool tlb_global = processor.m_tlb_global;
+			processor.m_tlb_entry_count = 0;
+			processor.m_tlb_global = false;
+			processor.unlock_tlb_lock();
+
+			auto& page_table = PageTable::current();
+
+			size_t pages = 0;
+			for (size_t i = 0; i < tlb_entry_count; i++)
+				if (tlb_entries[i].page_table == nullptr || tlb_entries[i].page_table == &page_table)
+					pages += tlb_entries[i].page_count;
+
+			if (pages >= PageTable::full_tlb_flush_threshold || tlb_entry_count >= processor.m_tlb_entries.size())
+				page_table.invalidate_full_address_space(tlb_global);
+			else for (size_t i = 0; i < tlb_entry_count; i++)
+				if (tlb_entries[i].page_table == nullptr || tlb_entries[i].page_table == &page_table)
+					page_table.invalidate_range(tlb_entries[i].vaddr, tlb_entries[i].page_count, false);
+		}
+
 		set_interrupt_state(state);
-	}
-
-	void Processor::load_segments()
-	{
-		load_fsbase();
-		load_gsbase();
-	}
-
-	void Processor::load_fsbase()
-	{
-		const auto addr = scheduler().current_thread().get_fsbase();
-#if ARCH(x86_64)
-		const uint32_t addr_hi = addr >> 32;
-		const uint32_t addr_lo = addr & 0xFFFFFFFF;
-		asm volatile("wrmsr" :: "d"(addr_hi), "a"(addr_lo), "c"(MSR_IA32_FS_BASE));
-#elif ARCH(i686)
-		gdt().set_fsbase(addr);
-#endif
-	}
-
-	void Processor::load_gsbase()
-	{
-		const auto addr = scheduler().current_thread().get_gsbase();
-#if ARCH(x86_64)
-		const uint32_t addr_hi = addr >> 32;
-		const uint32_t addr_lo = addr & 0xFFFFFFFF;
-		asm volatile("wrmsr" :: "d"(addr_hi), "a"(addr_lo), "c"(MSR_IA32_KERNEL_GS_BASE));
-#elif ARCH(i686)
-		gdt().set_gsbase(addr);
-#endif
 	}
 
 	void Processor::send_smp_message(ProcessorID processor_id, const SMPMessage& message, bool send_ipi)
@@ -459,6 +494,29 @@ namespace Kernel
 		set_interrupt_state(InterruptState::Disabled);
 
 		auto& processor = s_processors[processor_id.m_id];
+
+		if (message.type == SMPMessage::Type::FlushTLB)
+		{
+			processor.lock_tlb_lock();
+
+			const auto& tlb_msg = message.flush_tlb;
+
+			processor.m_tlb_global |= (tlb_msg.page_table == nullptr);
+
+			if (processor.m_tlb_entry_count < processor.m_tlb_entries.size())
+			{
+				processor.m_tlb_entries[processor.m_tlb_entry_count++] = {
+					.vaddr = tlb_msg.vaddr,
+					.page_count = tlb_msg.page_count,
+					.page_table = static_cast<PageTable*>(tlb_msg.page_table),
+				};
+			}
+
+			processor.unlock_tlb_lock();
+			set_interrupt_state(state);
+
+			return;
+		}
 
 		// find a slot for message
 		auto* storage = processor.m_smp_free.exchange(nullptr);
