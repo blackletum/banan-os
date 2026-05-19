@@ -132,7 +132,7 @@ namespace Kernel
 		static void handle_ipi();
 
 		static void handle_smp_messages();
-		static void send_smp_message(ProcessorID, const SMPMessage&, bool send_ipi = true);
+		static bool send_smp_message(ProcessorID, const SMPMessage&, bool send_ipi = true);
 		static void broadcast_smp_message(const SMPMessage&);
 
 		static void load_segments();

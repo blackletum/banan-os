@@ -488,7 +488,7 @@ namespace Kernel
 		set_interrupt_state(state);
 	}
 
-	void Processor::send_smp_message(ProcessorID processor_id, const SMPMessage& message, bool send_ipi)
+	bool Processor::send_smp_message(ProcessorID processor_id, const SMPMessage& message, bool send_ipi)
 	{
 		auto state = get_interrupt_state();
 		set_interrupt_state(InterruptState::Disabled);
@@ -498,6 +498,8 @@ namespace Kernel
 		if (message.type == SMPMessage::Type::FlushTLB)
 		{
 			processor.lock_tlb_lock();
+
+			const bool is_first_entry = (processor.m_tlb_entry_count == 0);
 
 			const auto& tlb_msg = message.flush_tlb;
 
@@ -515,7 +517,7 @@ namespace Kernel
 			processor.unlock_tlb_lock();
 			set_interrupt_state(state);
 
-			return;
+			return is_first_entry;
 		}
 
 		// find a slot for message
@@ -557,15 +559,19 @@ namespace Kernel
 			storage->next = processor.m_smp_pending;
 		}
 
+		const bool needs_ipi = (storage->next == nullptr);
+
 		if (send_ipi)
 		{
 			if (processor_id == current_id())
 				handle_smp_messages();
-			else
+			else if (needs_ipi)
 				InterruptController::get().send_ipi(processor_id);
 		}
 
 		set_interrupt_state(state);
+
+		return needs_ipi;
 	}
 
 	void Processor::broadcast_smp_message(const SMPMessage& message)
@@ -576,15 +582,18 @@ namespace Kernel
 		const auto state = get_interrupt_state();
 		set_interrupt_state(InterruptState::Disabled);
 
+		bool needs_ipi = false;
+
 		const auto current_id = Processor::current_id();
 		for (size_t i = 0; i < Processor::count(); i++)
 		{
 			const auto processor_id = s_processor_ids[i];
 			if (processor_id != current_id)
-				send_smp_message(processor_id, message, false);
+				needs_ipi |= send_smp_message(processor_id, message, false);
 		}
 
-		InterruptController::get().broadcast_ipi();
+		if (needs_ipi)
+			InterruptController::get().broadcast_ipi();
 
 		set_interrupt_state(state);
 	}
