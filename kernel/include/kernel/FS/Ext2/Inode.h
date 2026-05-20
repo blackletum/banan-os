@@ -71,8 +71,6 @@ namespace Kernel
 	private:
 		Ext2Inode(Ext2FS& fs, Ext2::Inode inode, uint32_t ino);
 
-		static BAN::ErrorOr<BAN::RefPtr<Ext2Inode>> create(Ext2FS&, uint32_t);
-
 	private:
 		struct ScopedSync
 		{

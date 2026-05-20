@@ -42,24 +42,6 @@ namespace Kernel
 		return (m_ino - 1) / m_fs.superblock().blocks_per_group;
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<Ext2Inode>> Ext2Inode::create(Ext2FS& fs, uint32_t inode_ino)
-	{
-		auto it = fs.inode_cache().find(inode_ino);
-		if (it != fs.inode_cache().end())
-			return it->value;
-
-		auto inode_location = TRY(fs.locate_inode(inode_ino));
-
-		auto block_buffer = TRY(fs.get_block_buffer());
-		TRY(fs.read_block(inode_location.block, block_buffer));
-
-		auto& inode = block_buffer.span().slice(inode_location.offset).as<Ext2::Inode>();
-
-		auto result = TRY(BAN::RefPtr<Ext2Inode>::create(fs, inode, inode_ino));
-		TRY(fs.inode_cache().insert(inode_ino, result));
-		return result;
-	}
-
 	Ext2Inode::~Ext2Inode()
 	{
 		if (m_nlink > 0)
@@ -542,7 +524,7 @@ done:
 
 		const uint32_t new_ino = TRY(m_fs.create_inode(initialize_new_inode_info(mode, uid, gid)));
 
-		auto inode_or_error = Ext2Inode::create(m_fs, new_ino);
+		auto inode_or_error = m_fs.open_inode(new_ino);
 		if (inode_or_error.is_error())
 		{
 			TRY(m_fs.delete_inode(new_ino));
@@ -568,7 +550,7 @@ done:
 
 		const uint32_t new_ino = TRY(m_fs.create_inode(initialize_new_inode_info(mode, uid, gid)));
 
-		auto inode_or_error = Ext2Inode::create(m_fs, new_ino);
+		auto inode_or_error = m_fs.open_inode(new_ino);
 		if (inode_or_error.is_error())
 		{
 			TRY(m_fs.delete_inode(new_ino));
@@ -814,7 +796,7 @@ needs_new_block:
 					}
 					else if (entry_name == ".."_sv)
 					{
-						auto parent = TRY(Ext2Inode::create(m_fs, entry.inode));
+						auto parent = TRY(m_fs.open_inode(entry.inode));
 						parent->m_nlink--;
 						TRY(parent->sync_inode_no_lock());
 					}
@@ -860,7 +842,7 @@ needs_new_block:
 				auto& entry = block_buffer.span().slice(offset).as<Ext2::LinkedDirectoryEntry>();
 				if (entry.inode && name == BAN::StringView(entry.name, entry.name_len))
 				{
-					auto inode = TRY(Ext2Inode::create(m_fs, entry.inode));
+					auto inode = TRY(m_fs.open_inode(entry.inode));
 					if (cleanup_directory && inode->mode().ifdir())
 					{
 						if (!TRY(inode->is_directory_empty_no_lock()))
@@ -878,11 +860,7 @@ needs_new_block:
 					// NOTE: If this was the last link to inode we must
 					//       remove it from inode cache to trigger cleanup
 					if (inode->nlink() == 0)
-					{
-						auto& cache = m_fs.inode_cache();
-						if (cache.contains(inode->ino()))
-							cache.remove(inode->ino());
-					}
+						m_fs.remove_from_cache(inode->ino());
 
 					// FIXME: This should expand the last inode if exists
 					entry.inode = 0;
@@ -963,7 +941,7 @@ needs_new_block:
 				auto& entry = entry_span.as<const Ext2::LinkedDirectoryEntry>();
 				BAN::StringView entry_name(entry.name, entry.name_len);
 				if (entry.inode && entry_name == file_name)
-					return BAN::RefPtr<Inode>(TRY(Ext2Inode::create(m_fs, entry.inode)));
+					return BAN::RefPtr<Inode>(TRY(m_fs.open_inode(entry.inode)));
 				entry_span = entry_span.slice(entry.rec_len);
 			}
 		}
