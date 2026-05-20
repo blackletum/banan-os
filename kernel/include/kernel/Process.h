@@ -284,9 +284,6 @@ namespace Kernel
 		BAN::ErrorOr<FileParent> find_parent_file(int fd, const char* path, int flags) const;
 		BAN::ErrorOr<VirtualFileSystem::File> find_relative_parent(int fd, const char* path) const;
 
-		BAN::ErrorOr<void> read_from_user(const void* user_addr, void* out, size_t size);
-		BAN::ErrorOr<void> read_string_from_user(const char* user_addr, char* out, size_t max_size);
-		BAN::ErrorOr<void> write_to_user(void* user_addr, const void* in, size_t size);
 		BAN::ErrorOr<MemoryRegion*> validate_and_pin_pointer_access(const void*, size_t, bool needs_write);
 
 		uint64_t signal_pending_mask() const
