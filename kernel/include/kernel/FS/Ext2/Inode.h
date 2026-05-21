@@ -55,7 +55,7 @@ namespace Kernel
 		BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_no_lock(BAN::StringView);
 
 		/* needs write end of the lock when allocate is true*/
-		BAN::ErrorOr<BAN::Optional<uint32_t>> block_from_indirect_block_no_lock(uint32_t& block, uint32_t index, uint32_t depth, bool allocate);
+		BAN::ErrorOr<BAN::Optional<uint32_t>> block_from_indirect_block_no_lock(uint32_t block, uint32_t index, uint32_t depth, bool allocate);
 		BAN::ErrorOr<BAN::Optional<uint32_t>> fs_block_of_data_block_index_no_lock(uint32_t data_block_index, bool allocate);
 
 		/* needs write end of the lock */
@@ -70,6 +70,10 @@ namespace Kernel
 
 	private:
 		Ext2Inode(Ext2FS& fs, Ext2::Inode inode, uint32_t ino);
+
+		BAN::Optional<uint32_t> block_cache_find(uint32_t block, uint32_t index) const;
+		void block_cache_remove(uint32_t block, uint32_t index);
+		void block_cache_add(uint32_t block, uint32_t index, uint32_t target);
 
 		BAN::RefPtr<Inode> dir_cache_find(BAN::StringView) const;
 		void dir_cache_remove(BAN::StringView);
@@ -108,6 +112,16 @@ namespace Kernel
 		const uint32_t m_og_dir_acl;
 		const uint32_t m_og_faddr;
 		const Ext2::Osd2 m_og_osd2;
+
+		struct BlockCacheEntry
+		{
+			mutable uint32_t freq;
+			uint32_t block;
+			uint32_t index;
+			uint32_t target;
+		};
+		mutable SpinLock m_block_cache_lock;
+		BAN::Array<BlockCacheEntry, 8> m_block_cache;
 
 		struct DirCacheEntry
 		{
