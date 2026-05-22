@@ -134,6 +134,12 @@ void clearerr(FILE* file)
 	file->error = false;
 }
 
+void __fseterr(FILE* file)
+{
+	ScopeLock _(file);
+	file->error = true;
+}
+
 char* ctermid(char* buffer)
 {
 	static char s_buffer[L_ctermid];
