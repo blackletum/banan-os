@@ -40,7 +40,6 @@ int posix_madvise(void* addr, size_t len, int advice)
 	(void)addr;
 	(void)len;
 	(void)advice;
-	fprintf(stddbg, "TODO: posix_madvise");
 	return 0;
 }
 
@@ -48,14 +47,18 @@ int posix_madvise(void* addr, size_t len, int advice)
 #include <BAN/Debug.h>
 #include <errno.h>
 
-int mlock(const void*, size_t)
+int mlock(const void* addr, size_t len)
 {
-	ASSERT_NOT_REACHED();
+	(void)addr;
+	(void)len;
+	return 0;
 }
 
-int munlock(const void*, size_t)
+int munlock(const void* addr, size_t len)
 {
-	ASSERT_NOT_REACHED();
+	(void)addr;
+	(void)len;
+	return 0;
 }
 
 int shm_open(const char* name, int oflag, mode_t mode)
