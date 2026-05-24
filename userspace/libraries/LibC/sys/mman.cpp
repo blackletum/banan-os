@@ -1,5 +1,7 @@
+#include <fcntl.h>
 #include <pthread.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -43,10 +45,6 @@ int posix_madvise(void* addr, size_t len, int advice)
 	return 0;
 }
 
-#include <BAN/Assert.h>
-#include <BAN/Debug.h>
-#include <errno.h>
-
 int mlock(const void* addr, size_t len)
 {
 	(void)addr;
@@ -63,18 +61,16 @@ int munlock(const void* addr, size_t len)
 
 int shm_open(const char* name, int oflag, mode_t mode)
 {
-	(void)name;
-	(void)oflag;
-	(void)mode;
-	dwarnln("TODO: shm_open");
-	errno = ENOTSUP;
-	return -1;
+	if (mkdir("/tmp/shm", 0777) == -1 && errno != EEXIST)
+		return -1;
+	char path[PATH_MAX];
+	sprintf(path, "/tmp/shm%s", name);
+	return open(path, oflag | O_CLOEXEC, mode);
 }
 
 int shm_unlink(const char* name)
 {
-	(void)name;
-	dwarnln("TODO: shm_unlink");
-	errno = ENOTSUP;
-	return -1;
+	char path[PATH_MAX];
+	sprintf(path, "/tmp/shm%s", name);
+	return unlink(path);
 }
