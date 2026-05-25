@@ -10,9 +10,13 @@
 #include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
 #include <kernel/UserCopy.h>
+#include <sys/syscall.h>
 
 namespace Kernel
 {
+
+	static_assert(SYS_SIGPROCMASK == 79, "this is hard coded in arch/*/Signal.S");
+	static_assert(SIG_SETMASK     ==  3, "this is hard coded in arch/*/Signal.S");
 
 #if ARCH(x86_64)
 	static constexpr vaddr_t s_user_stack_addr_start = 0x0000700000000000;
