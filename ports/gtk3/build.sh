@@ -3,7 +3,7 @@
 NAME='gtk'
 VERSION='3.24.49'
 DOWNLOAD_URL="https://gitlab.gnome.org/GNOME/gtk/-/archive/$VERSION/gtk-$VERSION.tar.gz#a2958d82986c81794e953a3762335fa7c78948706d23cced421f7245ca544cbc"
-DEPENDENCIES=('glib' 'gdk-pixbuf' 'pango' 'libatk' 'libepoxy' 'libXrandr')
+DEPENDENCIES=('glib' 'gdk-pixbuf' 'pango' 'libatk' 'libepoxy' 'libXrandr' 'libXcursor' 'libXinerama')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
 	'-Dtests=false'
