@@ -2,7 +2,7 @@
 
 NAME='xbanan'
 VERSION='git'
-DOWNLOAD_URL="https://git.bananymous.com/Bananymous/xbanan.git#b2c642f03d2e498e9d6acd55cc89a5e76c220811"
+DOWNLOAD_URL="https://git.bananymous.com/Bananymous/xbanan.git#a02355eb20007e81cca9cad9267b170fba8b7a1f"
 DEPENDENCIES=('xorgproto')
 
 configure() {
@@ -10,6 +10,8 @@ configure() {
 		--toolchain="$BANAN_TOOLCHAIN_DIR/Toolchain.txt" \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_BUILD_TYPE=Release \
+		-DPLATFORM=banan-os \
+		-DFONT_PATH=/usr/share/fonts/X11 \
 		|| exit 1
 }
 

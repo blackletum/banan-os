@@ -1,0 +1,25 @@
+From ee48f2a3a6a8fe829b1250c06850f2360ec8d17c Mon Sep 17 00:00:00 2001
+From: Oskari Alaranta <oskari.alaranta@bananymous.com>
+Date: Tue, 23 Jun 2026 23:53:51 +0300
+Subject: [PATCH] fix keymap path
+
+---
+ xbanan/banan-os/banan-os.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/xbanan/banan-os/banan-os.cpp b/xbanan/banan-os/banan-os.cpp
+index 99cb7ea..bc1709e 100644
+--- a/xbanan/banan-os/banan-os.cpp
++++ b/xbanan/banan-os/banan-os.cpp
+@@ -258,7 +258,7 @@ static BAN::ErrorOr<void> bananos_initialize_keymap()
+ 	};
+ 
+ 	// FIXME: get this from somewhere (gui command? enviroment? tmp file?)
+-	const auto keymap_path = "./us.keymap"_sv;
++	const auto keymap_path = "/usr/share/keymaps/us.keymap"_sv;
+ 	TRY(LibInput::KeyboardLayout::initialize());
+ 	auto& keyboard_layout = LibInput::KeyboardLayout::get();
+ 	TRY(keyboard_layout.load_from_file(keymap_path));
+-- 
+2.54.0
+
