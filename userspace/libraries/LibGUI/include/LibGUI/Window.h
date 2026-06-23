@@ -79,6 +79,7 @@ namespace LibGUI
 		void set_window_shown_event_callback(BAN::Function<void(EventPacket::WindowShownEvent::event_t)> callback)           { m_window_shown_event_callback = callback; }
 		void set_window_focus_event_callback(BAN::Function<void(EventPacket::WindowFocusEvent::event_t)> callback)           { m_window_focus_event_callback = callback; }
 		void set_window_fullscreen_event_callback(BAN::Function<void(EventPacket::WindowFullscreenEvent::event_t)> callback) { m_window_fullscreen_event_callback = callback; }
+		void set_window_move_event_callback(BAN::Function<void(EventPacket::WindowMoveEvent::event_t)> callback)             { m_window_move_event_callback = callback; }
 
 		int server_fd() const { return m_server_fd; }
 
@@ -118,6 +119,7 @@ namespace LibGUI
 		BAN::Function<void(EventPacket::WindowShownEvent::event_t)>      m_window_shown_event_callback;
 		BAN::Function<void(EventPacket::WindowFocusEvent::event_t)>      m_window_focus_event_callback;
 		BAN::Function<void(EventPacket::WindowFullscreenEvent::event_t)> m_window_fullscreen_event_callback;
+		BAN::Function<void(EventPacket::WindowMoveEvent::event_t)>       m_window_move_event_callback;
 		BAN::Function<void(EventPacket::KeyEvent::event_t)>              m_key_event_callback;
 		BAN::Function<void(EventPacket::MouseButtonEvent::event_t)>      m_mouse_button_event_callback;
 		BAN::Function<void(EventPacket::MouseMoveEvent::event_t)>        m_mouse_move_event_callback;

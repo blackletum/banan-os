@@ -70,15 +70,21 @@ namespace LibGUI
 		TRY(create_packet.title.append(title));
 		window->send_packet(create_packet, __FUNCTION__);
 
-		bool resized = false;
+		int32_t x, y;
+		bool resized { false }, moved { false };
 		window->set_resize_window_event_callback([&]() { resized = true; });
-		while (!resized)
+		window->set_window_move_event_callback([&](auto event) { x = event.x; y = event.y; moved = true; });
+		while (!resized || !moved)
 		{
 			// FIXME: timeout?
 			window->wait_events();
 			window->poll_events();
 		}
 		window->set_resize_window_event_callback({});
+		window->set_window_move_event_callback({});
+
+		// hack to resend move event :^)
+		window->set_position(x, y);
 
 		server_closer.disable();
 		epoll_closer.disable();
@@ -364,6 +370,10 @@ namespace LibGUI
 					case PacketType::WindowFullscreenEvent:
 						if (m_window_fullscreen_event_callback)
 							m_window_fullscreen_event_callback(TRY_OR_BREAK(EventPacket::WindowFullscreenEvent::deserialize(packet_span)).event);
+						break;
+					case PacketType::WindowMoveEvent:
+						if (m_window_move_event_callback)
+							m_window_move_event_callback(TRY_OR_BREAK(EventPacket::WindowMoveEvent::deserialize(packet_span)).event);
 						break;
 					case PacketType::KeyEvent:
 						if (m_key_event_callback)
