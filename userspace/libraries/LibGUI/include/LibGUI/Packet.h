@@ -211,6 +211,9 @@ namespace LibGUI
 		MouseButtonEvent,
 		MouseMoveEvent,
 		MouseScrollEvent,
+
+		QueryPointer,
+		QueryPointerEvent,
 	};
 
 	struct PacketHeader
@@ -303,6 +306,10 @@ namespace LibGUI
 			BAN::Vector<uint32_t>, pixels
 		);
 
+		DEFINE_PACKET(
+			QueryPointer
+		);
+
 	}
 
 	namespace EventPacket
@@ -386,6 +393,15 @@ namespace LibGUI
 			MouseScrollEvent,
 			struct event_t {
 				int32_t scroll;
+			},
+			event_t, event
+		);
+
+		DEFINE_PACKET_EXTRA(
+			QueryPointerEvent,
+			struct event_t {
+				int32_t x;
+				int32_t y;
 			},
 			event_t, event
 		);

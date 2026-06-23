@@ -40,6 +40,19 @@ BAN::ErrorOr<void> WindowServer::set_background_image(BAN::UniqPtr<LibImage::Ima
 	return {};
 }
 
+void WindowServer::on_query_pointer(int fd, const LibGUI::WindowPacket::QueryPointer&)
+{
+	const LibGUI::EventPacket::QueryPointerEvent event_packet { .event = {
+		.x = m_cursor.x,
+		.y = m_cursor.y,
+	}};
+	if (auto ret = append_serialized_packet(event_packet, fd); ret.is_error())
+	{
+		dwarnln("could not respond to query pointer request: {}", ret.error());
+		return;
+	}
+}
+
 void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCreate& packet)
 {
 	for (auto& window : m_client_windows)

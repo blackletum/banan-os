@@ -274,6 +274,12 @@ namespace LibGUI
 		send_packet(packet, __FUNCTION__);
 	}
 
+	void Window::query_cursor_position()
+	{
+		const WindowPacket::QueryPointer packet {};
+		send_packet(packet, __FUNCTION__);
+	}
+
 	void Window::on_socket_error(BAN::StringView function)
 	{
 		if (m_handling_socket_error)
@@ -418,6 +424,10 @@ namespace LibGUI
 					case PacketType::MouseScrollEvent:
 						if (m_mouse_scroll_event_callback)
 							m_mouse_scroll_event_callback(TRY_OR_BREAK(EventPacket::MouseScrollEvent::deserialize(packet_span)).event);
+						break;
+					case PacketType::QueryPointerEvent:
+						if (m_query_pointer_event_callback)
+							m_query_pointer_event_callback(TRY_OR_BREAK(EventPacket::QueryPointerEvent::deserialize(packet_span)).event);
 						break;
 #undef TRY_OR_BREAK
 					default:
