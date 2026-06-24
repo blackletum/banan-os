@@ -448,7 +448,7 @@ namespace Kernel
 				continue;
 			const auto& amp = path[i]->output_amplifier.value();
 
-			const int32_t step_mdB = amp.step_size * 250;
+			const int32_t step_mdB = (amp.step_size + 1) * 250;
 			m_volume_info.step_mdB = step_mdB;
 			m_volume_info.min_mdB = -amp.offset * step_mdB;
 			m_volume_info.max_mdB = (amp.num_steps - amp.offset) * step_mdB;
