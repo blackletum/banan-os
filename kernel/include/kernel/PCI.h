@@ -179,7 +179,7 @@ namespace Kernel::PCI
 	private:
 		struct PCIeInfo
 		{
-			paddr_t bus_paddr[256];
+			paddr_t bus_paddr[256] {};
 		};
 
 		PCIManager() = default;
