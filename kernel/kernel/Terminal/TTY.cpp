@@ -449,9 +449,14 @@ namespace Kernel
 	void TTY::putchar_current(uint8_t ch)
 	{
 		ASSERT(s_tty);
-		LockGuard _(s_tty->m_write_lock);
+
+		while (!s_tty->m_write_lock.try_lock())
+			Processor::pause();
+
 		s_tty->putchar(ch);
 		s_tty->after_write();
+
+		s_tty->m_write_lock.unlock();
 	}
 
 	bool TTY::is_initialized()
