@@ -749,11 +749,23 @@ namespace Kernel
 			case SO_ERROR:
 				result = 0;
 				break;
+			case SO_KEEPALIVE:
+				result = 1;
+				break;
 			case SO_SNDBUF:
 				result = m_sndbuf;
 				break;
 			case SO_RCVBUF:
 				result = m_packet_buffer->size();
+				break;
+			case SO_TYPE:
+				switch (m_socket_type)
+				{
+					case Type::STREAM:    result = SOCK_STREAM;    break;
+					case Type::DGRAM:     result = SOCK_DGRAM;     break;
+					case Type::SEQPACKET: result = SOCK_SEQPACKET; break;
+					default: ASSERT_NOT_REACHED();
+				}
 				break;
 			default:
 				dwarnln("getsockopt(SOL_SOCKET, {})", option);
