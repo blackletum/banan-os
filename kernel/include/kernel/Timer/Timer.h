@@ -31,7 +31,7 @@ namespace Kernel
 	class SystemTimer : public Timer
 	{
 	public:
-		static void initialize(bool force_pic);
+		static void initialize();
 		static SystemTimer& get();
 		static bool is_initialized();
 
@@ -57,7 +57,7 @@ namespace Kernel
 	private:
 		SystemTimer() = default;
 
-		void initialize_timers(bool force_pic);
+		void initialize_timers();
 
 		uint64_t get_tsc_frequency() const;
 

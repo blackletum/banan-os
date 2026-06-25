@@ -12,7 +12,7 @@ namespace Kernel
 	class HPET final : public Timer, public Interruptable
 	{
 	public:
-		static BAN::ErrorOr<BAN::UniqPtr<HPET>> create(bool force_pic);
+		static BAN::ErrorOr<BAN::UniqPtr<HPET>> create();
 		~HPET();
 
 		virtual uint64_t ms_since_boot() const override;
@@ -26,7 +26,7 @@ namespace Kernel
 
 	private:
 		HPET() = default;
-		BAN::ErrorOr<void> initialize(bool force_pic);
+		BAN::ErrorOr<void> initialize();
 
 		volatile HPETRegisters& registers();
 		const volatile HPETRegisters& registers() const;

@@ -151,7 +151,7 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	InterruptController::initialize(cmdline.force_pic);
 	dprintln("Interrupt controller initialized");
 
-	SystemTimer::initialize(cmdline.force_pic);
+	SystemTimer::initialize();
 	dprintln("Timers initialized");
 
 	DevFileSystem::initialize();

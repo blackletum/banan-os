@@ -1,5 +1,6 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/ACPI/ACPI.h>
+#include <kernel/APIC.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Memory/PageTable.h>
@@ -112,13 +113,13 @@ namespace Kernel
 	static_assert(offsetof(HPETRegisters, timers[0])	== 0x100);
 	static_assert(offsetof(HPETRegisters, timers[1])	== 0x120);
 
-	BAN::ErrorOr<BAN::UniqPtr<HPET>> HPET::create(bool force_pic)
+	BAN::ErrorOr<BAN::UniqPtr<HPET>> HPET::create()
 	{
 		HPET* hpet_ptr = new HPET();
 		if (hpet_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		auto hpet = BAN::UniqPtr<HPET>::adopt(hpet_ptr);
-		TRY(hpet->initialize(force_pic));
+		TRY(hpet->initialize());
 		return hpet;
 	}
 
@@ -129,7 +130,7 @@ namespace Kernel
 		m_mmio_base = 0;
 	}
 
-	BAN::ErrorOr<void> HPET::initialize(bool force_pic)
+	BAN::ErrorOr<void> HPET::initialize()
 	{
 		auto* header = static_cast<const ACPI::HPET*>(ACPI::ACPI::get().get_header("HPET"_sv, 0));
 		if (header == nullptr)
@@ -138,7 +139,7 @@ namespace Kernel
 		if (header->hardware_rev_id == 0)
 			return BAN::Error::from_errno(EINVAL);
 
-		if (force_pic && !header->legacy_replacement_irq_routing_cable)
+		if (!InterruptController::get().is_using_apic() && !header->legacy_replacement_irq_routing_cable)
 		{
 			dwarnln("HPET doesn't support legacy mapping");
 			return BAN::Error::from_errno(ENOTSUP);
@@ -151,18 +152,19 @@ namespace Kernel
 
 		auto& regs = registers();
 
+#if ARCH(x86_64)
 		m_is_64bit = regs.capabilities & COUNT_SIZE_CAP;
+#else
+		// spec: It is strongly recommended that 32-bit software only operate the timer in 32-bit mode.
+		m_is_64bit = false;
+#endif
 
 		// Disable and reset main counter
 		regs.configuration.low = regs.configuration.low & ~ENABLE_CNF;
 		regs.main_counter.high = 0;
 		regs.main_counter.low = 0;
 
-		// Enable legacy routing if available
-		if (regs.capabilities & LEG_RT_CAP)
-			regs.configuration.low = regs.configuration.low | LEG_RT_CNF;
-
-		uint32_t period_fs = regs.counter_clk_period;
+		const uint32_t period_fs = regs.counter_clk_period;
 		if (period_fs == 0 || period_fs > HPET_PERIOD_MAX)
 		{
 			dwarnln("HPET: Invalid counter period");
@@ -172,7 +174,7 @@ namespace Kernel
 		m_ticks_per_s = FS_PER_S / period_fs;
 		dprintln("HPET frequency {} Hz", m_ticks_per_s);
 
-		uint8_t last_timer = (regs.capabilities & NUM_TIM_CAP_MASK) >> NUM_TIM_CAP_SHIFT;
+		const uint8_t last_timer = (regs.capabilities & NUM_TIM_CAP_MASK) >> NUM_TIM_CAP_SHIFT;
 		dprintln("HPET has {} timers", last_timer + 1);
 
 		// Disable all timers
@@ -190,21 +192,54 @@ namespace Kernel
 		}
 
 		// enable interrupts
-		timer0.configuration  = timer0.configuration | Tn_INT_ENB_CNF;
-		// clear interrupt mask (set irq to 0)
-		timer0.configuration = timer0.configuration & ~Tn_INT_ROUTE_CNF_MASK;
+		timer0.configuration = timer0.configuration |  Tn_INT_ENB_CNF;
 		// edge triggered interrupts
 		timer0.configuration = timer0.configuration & ~Tn_INT_TYPE_CNF;
 		// periodic timer
-		timer0.configuration = timer0.configuration | Tn_TYPE_CNF;
+		timer0.configuration = timer0.configuration |  Tn_TYPE_CNF;
 		// disable 32 bit mode
 		timer0.configuration = timer0.configuration & ~Tn_32MODE_CNF;
 		// disable FSB interrupts
 		if (timer0.configuration & Tn_FSB_INT_DEL_CAP)
 			timer0.configuration = timer0.configuration & ~Tn_FSB_EN_CNF;
 
+		uint16_t irq;
+		if (header->legacy_replacement_irq_routing_cable)
+		{
+			TRY(InterruptController::get().reserve_irq(0));
+			irq = 0;
+
+			regs.configuration.low = regs.configuration.low | LEG_RT_CNF;
+			timer0.configuration = timer0.configuration & ~Tn_INT_ROUTE_CNF_MASK;
+		}
+		else
+		{
+			ASSERT(InterruptController::get().is_using_apic());
+			auto& apic = static_cast<APIC&>(InterruptController::get());
+
+			uint8_t gsi = 0;
+			for (; gsi < 32; gsi++)
+			{
+				if (!(timer0.int_route_cap & (1u << gsi)))
+					continue;
+				auto ret = apic.reserve_gsi(gsi);
+				if (ret.is_error())
+					continue;
+				irq = ret.value();
+				break;
+			}
+			if (gsi == 32)
+			{
+				dwarnln("Could not route any interrupt for HPET");
+				return BAN::Error::from_errno(EFAULT);
+			}
+
+			regs.configuration.low = regs.configuration.low & ~LEG_RT_CNF;
+			timer0.configuration = (timer0.configuration & ~Tn_INT_ROUTE_CNF_MASK) | (gsi << Tn_INT_ROUTE_CNF_SHIFT);
+		}
+
 		// set timer period to 1000 Hz
-		uint64_t ticks_per_ms = m_ticks_per_s / 1000;
+		const uint64_t ticks_per_ms = m_ticks_per_s / 1000;
 		timer0.configuration = timer0.configuration | Tn_VAL_SET_CNF;
 		timer0.comparator.low = ticks_per_ms;
 		if (timer0.configuration & Tn_SIZE_CAP)
@@ -221,9 +256,8 @@ namespace Kernel
 		// enable main counter
 		regs.configuration.low = regs.configuration.low | ENABLE_CNF;
 
-		TRY(InterruptController::get().reserve_irq(0));
-		set_irq(0);
-		InterruptController::get().enable_irq(0);
+		set_irq(irq);
+		InterruptController::get().enable_irq(irq);
 
 		return {};
 	}
@@ -240,36 +274,33 @@ namespace Kernel
 
 	uint64_t HPET::read_main_counter() const
 	{
-		auto& regs = registers();
+		const auto& regs = registers();
+
 		if (m_is_64bit)
 			return regs.main_counter.full;
 
 		SpinLockGuard _(m_lock);
-		uint32_t current_low = regs.main_counter.low;
-		uint32_t wraps = m_32bit_wraps;
-		if (current_low < (uint32_t)m_last_ticks)
-			wraps++;
-		return ((uint64_t)wraps << 32) | current_low;
+		const uint32_t current_low = regs.main_counter.low;
+		const uint32_t wraps = m_32bit_wraps + (current_low < static_cast<uint32_t>(m_last_ticks));
+		return (static_cast<uint64_t>(wraps) << 32) | current_low;
 	}
 
 	void HPET::handle_irq()
 	{
 		{
-			auto& regs = registers();
+			const auto& regs = registers();
 
 			SpinLockGuard _(m_lock);
 
-			uint64_t current_ticks;
 			if (m_is_64bit)
-				current_ticks = regs.main_counter.full;
+				m_last_ticks = regs.main_counter.full;
 			else
 			{
-				uint32_t current_low = regs.main_counter.low;
-				if (current_low < (uint32_t)m_last_ticks)
+				const uint32_t current_low = regs.main_counter.low;
+				if (current_low < static_cast<uint32_t>(m_last_ticks))
 					m_32bit_wraps++;
-				current_ticks = ((uint64_t)m_32bit_wraps << 32) | current_low;
+				m_last_ticks = (static_cast<uint64_t>(m_32bit_wraps) << 32) | current_low;
 			}
-			m_last_ticks = current_ticks;
 		}
 
 		SystemTimer::get().update_tsc();
@@ -280,25 +311,25 @@ namespace Kernel
 
 	uint64_t HPET::ms_since_boot() const
 	{
-		auto current = time_since_boot();
+		const auto current = time_since_boot();
 		return current.tv_sec * 1'000 + current.tv_nsec / 1'000'000;
 	}
 
 	uint64_t HPET::ns_since_boot() const
 	{
-		auto current = time_since_boot();
+		const auto current = time_since_boot();
 		return current.tv_sec * 1'000'000'000 + current.tv_nsec;
 	}
 
 	timespec HPET::time_since_boot() const
 	{
-		auto& regs = registers();
+		const auto& regs = registers();
 
-		uint64_t counter = read_main_counter();
-		uint64_t seconds			= counter / m_ticks_per_s;
-		uint64_t ticks_this_second	= counter % m_ticks_per_s;
+		const uint64_t counter           = read_main_counter();
+		const uint64_t seconds           = counter / m_ticks_per_s;
+		const uint64_t ticks_this_second = counter % m_ticks_per_s;
 
-		long ns_this_second = ticks_this_second * regs.counter_clk_period / FS_PER_NS;
+		const long ns_this_second = ticks_this_second * regs.counter_clk_period / FS_PER_NS;
 
 		return timespec {
 			.tv_sec = static_cast<time_t>(seconds),
@@ -308,7 +339,7 @@ namespace Kernel
 
 	void HPET::pre_scheduler_sleep_ns(uint64_t ns)
 	{
-		auto& regs = registers();
+		const auto& regs = registers();
 
 		const uint64_t target_ticks = BAN::Math::div_round_up<uint64_t>(ns * FS_PER_NS, regs.counter_clk_period);
 

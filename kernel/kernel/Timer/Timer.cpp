@@ -11,12 +11,12 @@ namespace Kernel
 
 	static SystemTimer* s_instance = nullptr;
 
-	void SystemTimer::initialize(bool force_pic)
+	void SystemTimer::initialize()
 	{
 		ASSERT(s_instance == nullptr);
 		auto* temp = new SystemTimer;
 		ASSERT(temp);
-		temp->initialize_timers(force_pic);
+		temp->initialize_timers();
 		s_instance = temp;
 	}
 
@@ -31,12 +31,12 @@ namespace Kernel
 		return !!s_instance;
 	}
 
-	void SystemTimer::initialize_timers(bool force_pic)
+	void SystemTimer::initialize_timers()
 	{
 		m_rtc = MUST(BAN::UniqPtr<RTC>::create());
 		m_boot_time = BAN::to_unix_time(m_rtc->get_current_time());
 
-		if (auto res = HPET::create(force_pic); res.is_error())
+		if (auto res = HPET::create(); res.is_error())
 			dwarnln("HPET: {}", res.error());
 		else
 		{
