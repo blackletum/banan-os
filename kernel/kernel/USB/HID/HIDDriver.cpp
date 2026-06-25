@@ -253,8 +253,9 @@ namespace Kernel
 			BAN::Vector<USBHID::Report> outputs;
 			TRY(gather_collection_reports(collection, outputs, USBHID::Report::Type::Output));
 
-			if (collection.usage_page == 0x01)
+			switch (collection.usage_page)
 			{
+			case 0x01:
 				switch (collection.usage_id)
 				{
 					case 0x02:
@@ -271,6 +272,15 @@ namespace Kernel
 						break;
 					default:
 						dwarnln("Unsupported generic descript page usage 0x{2H}", collection.usage_id);
+						break;
+				}
+				break;
+			case 0x0C:
+				switch (collection.usage_id)
+				{
+					case 0x01:
+						report.device = TRY(BAN::RefPtr<USBKeyboard>::create(*this, BAN::move(outputs)));
+						dprintln("Initialized an USB Consumer Control");
 						break;
 				}
 			}

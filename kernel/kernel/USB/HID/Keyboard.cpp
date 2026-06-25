@@ -135,15 +135,33 @@ namespace Kernel
 
 		ASSERT(m_keyboard_lock.current_processor_has_lock());
 
-		if (usage_page != 0x07)
+		if (state == 0)
+			return;
+
+		switch (usage_page)
 		{
-			dprintln_if(DEBUG_USB_KEYBOARD, "Unsupported keyboard usage page {2H}", usage_page);
-			return;
+			case 0x07:
+				if (usage >= 4 && usage < m_keyboard_state_temp.size())
+					m_keyboard_state_temp[usage] = true;
+				break;
+			case 0x0C:
+				switch (usage)
+				{
+					case 0xE9:
+						m_keyboard_state_temp[0x80] = true;
+						break;
+					case 0xEA:
+						m_keyboard_state_temp[0x81] = true;
+						break;
+					default:
+						dprintln_if(DEBUG_USB_KEYBOARD, "Unsupported consumer page usage {2H}", usage);
+						break;
+				}
+				break;
+			default:
+				dprintln_if(DEBUG_USB_KEYBOARD, "Unsupported keyboard usage page {2H}", usage_page);
+				break;
 		}
-		if (!state)
-			return;
-		if (usage >= 4 && usage < m_keyboard_state_temp.size())
-			m_keyboard_state_temp[usage] = state;
 	}
 
 	void USBKeyboard::update()
