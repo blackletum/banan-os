@@ -14,8 +14,8 @@ namespace Kernel::ELF
 			size_t size;
 		};
 
-		bool open_execfd;
 		vaddr_t entry_point;
+		BAN::Optional<vaddr_t> interp_base;
 		BAN::Optional<TLS> master_tls;
 		BAN::Vector<BAN::UniqPtr<MemoryRegion>> regions;
 	};

@@ -291,7 +291,9 @@ namespace Kernel::ELF
 			TRY(memory_regions.emplace_back(BAN::move(region)));
 		}
 
-		result.open_execfd = !interpreter.empty();
+		if (!interpreter.empty())
+			result.interp_base = load_base_vaddr;
+
 		result.entry_point = load_base_vaddr + file_header.e_entry;
 		result.regions = BAN::move(memory_regions);
 		return BAN::move(result);

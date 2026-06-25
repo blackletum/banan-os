@@ -144,14 +144,18 @@ namespace Kernel
 			process->m_credentials.set_egid(executable_inode->gid());
 
 		BAN::Vector<LibELF::AuxiliaryVector> auxiliary_vector;
-		TRY(auxiliary_vector.reserve(1 + executable.open_execfd));
+		TRY(auxiliary_vector.reserve(2 + 2 * executable.interp_base.has_value()));
 
-		if (executable.open_execfd)
+		if (executable.interp_base.has_value())
 		{
 			const int execfd = TRY(process->m_open_file_descriptors.open(BAN::move(executable_file), O_RDONLY));
 			TRY(auxiliary_vector.push_back({
 				.a_type = LibELF::AT_EXECFD,
 				.a_un = { .a_val = static_cast<uint32_t>(execfd) },
+			}));
+			TRY(auxiliary_vector.push_back({
+				.a_type = LibELF::AT_BASE,
+				.a_un = { .a_ptr = reinterpret_cast<void*>(executable.interp_base.value()) },
 			}));
 		}
 
@@ -821,7 +825,7 @@ namespace Kernel
 			TRY(executable_path.append(executable_file.canonical_path));
 
 			BAN::Vector<LibELF::AuxiliaryVector> auxiliary_vector;
-			TRY(auxiliary_vector.reserve(1 + executable.open_execfd));
+			TRY(auxiliary_vector.reserve(2 + 2 * executable.interp_base.has_value()));
 
 			BAN::ScopeGuard execfd_guard([this, &auxiliary_vector] {
 				if (auxiliary_vector.empty())
@@ -831,12 +835,16 @@ namespace Kernel
 				MUST(m_open_file_descriptors.close(auxiliary_vector.front().a_un.a_val));
 			});
 
-			if (executable.open_execfd)
+			if (executable.interp_base.has_value())
 			{
 				const int execfd = TRY(m_open_file_descriptors.open(BAN::move(executable_file), O_RDONLY));
 				TRY(auxiliary_vector.push_back({
 					.a_type = LibELF::AT_EXECFD,
 					.a_un = { .a_val = static_cast<uint32_t>(execfd) },
+				}));
+				TRY(auxiliary_vector.push_back({
+					.a_type = LibELF::AT_BASE,
+					.a_un = { .a_ptr = reinterpret_cast<void*>(executable.interp_base.value()) },
 				}));
 			}
 
