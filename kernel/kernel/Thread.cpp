@@ -609,15 +609,14 @@ namespace Kernel
 			SpinLockGuard _2(m_process->m_signal_lock);
 
 			const uint64_t process_signal_pending_mask = m_process->m_signal_pending_mask;
-			const uint64_t full_pending_mask = m_signal_pending_mask | process_signal_pending_mask;
-			for (signal = _SIGMIN; signal <= _SIGMAX; signal++)
-			{
-				const uint64_t mask = 1ull << signal;
-				if ((full_pending_mask & mask) && !(m_signal_block_mask & mask))
-					break;
-			}
-			if (signal > _SIGMAX)
+			const uint64_t full_pending_mask = (m_signal_pending_mask | process_signal_pending_mask) & ~m_signal_block_mask;
+			if (full_pending_mask == 0) [[likely]]
 				return false;
+
+			for (signal = _SIGMIN; signal <= _SIGMAX; signal++)
+				if (full_pending_mask & (1ull << signal))
+					break;
+			ASSERT(signal <= _SIGMAX);
 
 			if (process_signal_pending_mask & (1ull << signal))
 				signal_info = m_process->m_signal_infos[signal];

@@ -2983,6 +2983,9 @@ namespace Kernel
 
 	void Process::wait_while_stopped()
 	{
+		if (!m_stopped) [[likely]]
+			return;
+
 		for (;;)
 		{
 			while (Thread::current().will_exit_because_of_signal())
