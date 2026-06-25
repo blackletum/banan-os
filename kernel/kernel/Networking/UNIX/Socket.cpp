@@ -704,6 +704,25 @@ namespace Kernel
 		}
 	}
 
+	BAN::ErrorOr<void> UnixDomainSocket::getsockname_impl(sockaddr* address, socklen_t* address_len)
+	{
+		sockaddr_un sa_un {
+			.sun_family = AF_UNIX,
+			.sun_path = {},
+		};
+
+		{
+			LockGuard _(m_bind_mutex);
+			strcpy(sa_un.sun_path, m_bound_file.canonical_path.data());
+		}
+
+		const size_t to_copy = BAN::Math::min<socklen_t>(sizeof(sockaddr_un), *address_len);
+		memcpy(address, &sa_un, to_copy);
+		*address_len = to_copy;
+		return {};
+	}
+
+
 	BAN::ErrorOr<void> UnixDomainSocket::getpeername_impl(sockaddr* address, socklen_t* address_len)
 	{
 		if (!m_info.has<ConnectionInfo>())
@@ -713,20 +732,7 @@ namespace Kernel
 		if (!connection)
 			return BAN::Error::from_errno(ENOTCONN);
 
-		sockaddr_un sa_un {
-			.sun_family = AF_UNIX,
-			.sun_path = {},
-		};
-
-		{
-			LockGuard _(m_bind_mutex);
-			strcpy(sa_un.sun_path, connection->m_bound_file.canonical_path.data());
-		}
-
-		const size_t to_copy = BAN::Math::min<socklen_t>(sizeof(sockaddr_un), *address_len);
-		memcpy(address, &sa_un, to_copy);
-		*address_len = to_copy;
-		return {};
+		return connection->getsockname_impl(address, address_len);
 	}
 
 	BAN::ErrorOr<void> UnixDomainSocket::getsockopt_impl(int level, int option, void* value, socklen_t* value_len)
