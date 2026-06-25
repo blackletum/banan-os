@@ -38,7 +38,7 @@ USB_ARGS='-device qemu-xhci -device usb-kbd,port=1 -device usb-hub,port=2 -devic
 SOUND_ARGS='-device intel-hda -device hda-output'
 
 if [[ $@ == *"-accel kvm"* ]]; then
-	CPU_ARGS='-cpu host,migratable=off'
+	CPU_ARGS='-cpu host'
 fi
 
 qemu-system-$QEMU_ARCH \

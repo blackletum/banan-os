@@ -27,14 +27,10 @@
 
 isr_stub:
 	intr_header 12
-	movl %cr0, %eax; pushl %eax
-	movl %cr2, %eax; pushl %eax
-	movl %cr3, %eax; pushl %eax
-	movl %cr4, %eax; pushl %eax
 
-	movl 48(%esp), %edi // isr number
-	movl 52(%esp), %esi // error code
-	leal 56(%esp), %edx // interrupt stack ptr
+	movl 32(%esp), %edi // isr number
+	movl 36(%esp), %esi // error code
+	leal 40(%esp), %edx // interrupt stack ptr
 	movl %esp,     %ecx // register ptr
 
 	# stack frame for stack trace
@@ -52,7 +48,7 @@ isr_stub:
 	call cpp_isr_handler
 
 	movl %ebp, %esp
-	addl $24, %esp
+	addl $8, %esp
 
 	intr_footer 12
 	addl $8, %esp

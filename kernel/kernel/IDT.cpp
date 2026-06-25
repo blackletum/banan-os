@@ -24,11 +24,6 @@ namespace Kernel
 #if ARCH(x86_64)
 	struct Registers
 	{
-		uint64_t cr4;
-		uint64_t cr3;
-		uint64_t cr2;
-		uint64_t cr0;
-
 		uint64_t r15;
 		uint64_t r14;
 		uint64_t r13;
@@ -49,11 +44,6 @@ namespace Kernel
 #elif ARCH(i686)
 	struct Registers
 	{
-		uint32_t cr4;
-		uint32_t cr3;
-		uint32_t cr2;
-		uint32_t cr0;
-
 		uint32_t edi;
 		uint32_t esi;
 		uint32_t ebp;
@@ -226,8 +216,11 @@ namespace Kernel
 					return;
 				}
 
+				uintptr_t cr2;
+				asm volatile("mov %%cr2, %0" : "=r"(cr2));
+
 				Processor::set_interrupt_state(InterruptState::Enabled);
-				auto result = Process::current().allocate_page_for_demand_paging(regs->cr2, page_fault_error.write, page_fault_error.instruction);
+				auto result = Process::current().allocate_page_for_demand_paging(cr2, page_fault_error.write, page_fault_error.instruction);
 				Processor::set_interrupt_state(InterruptState::Disabled);
 
 				if (result.is_error())
@@ -286,6 +279,15 @@ namespace Kernel
 			}
 		}
 
+		uintptr_t cr0, cr2, cr3, cr4;
+		asm volatile(
+			"mov %%cr0, %0;"
+			"mov %%cr2, %1;"
+			"mov %%cr3, %2;"
+			"mov %%cr4, %3;"
+			: "=r"(cr0), "=r"(cr2), "=r"(cr3), "=r"(cr4)
+		);
+
 		Debug::s_debug_lock.lock();
 
 		if (PageTable::current().get_page_flags(interrupt_stack->ip & PAGE_ADDR_MASK) & PageTable::Flags::Present)
@@ -323,7 +325,7 @@ namespace Kernel
 			regs->r8, regs->r9, regs->r10, regs->r11,
 			regs->r12, regs->r13, regs->r14, regs->r15,
 			interrupt_stack->ip, interrupt_stack->flags,
-			regs->cr0, regs->cr2, regs->cr3, regs->cr4
+			cr0, cr2, cr3, cr4
 		);
 #elif ARCH(i686)
 		dwarnln(
@@ -337,7 +339,7 @@ namespace Kernel
 			regs->eax, regs->ebx, regs->ecx, regs->edx,
 			interrupt_stack->sp, regs->ebp, regs->edi, regs->esi,
 			interrupt_stack->ip, interrupt_stack->flags,
-			regs->cr0, regs->cr2, regs->cr3, regs->cr4
+			cr0, cr2, cr3, cr4
 		);
 #endif
 		if (isr == ISR::PageFault)
@@ -385,11 +387,11 @@ namespace Kernel
 				break;
 			case ISR::PageFault:
 				signal_info.si_signo = SIGSEGV;
-				if (PageTable::current().get_page_flags(regs->cr2 & PAGE_ADDR_MASK) & PageTable::Flags::Present)
+				if (PageTable::current().get_page_flags(cr2 & PAGE_ADDR_MASK) & PageTable::Flags::Present)
 					signal_info.si_code = SEGV_ACCERR;
 				else
 					signal_info.si_code = SEGV_MAPERR;
-				signal_info.si_addr = reinterpret_cast<void*>(regs->cr2);
+				signal_info.si_addr = reinterpret_cast<void*>(cr2);
 				break;
 			default:
 				dwarnln("Unhandled exception");

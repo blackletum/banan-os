@@ -11,6 +11,18 @@ namespace Kernel
 
 	static SystemTimer* s_instance = nullptr;
 
+	struct pvclock_vcpu_time_info
+	{
+		uint32_t version;
+		uint32_t pad0;
+		uint64_t tsc_timestamp;
+		uint64_t system_time;
+		uint32_t tsc_to_system_mul;
+		int8_t tsc_shift;
+		uint8_t flags;
+		uint8_t pad[2];
+	};
+
 	void SystemTimer::initialize()
 	{
 		ASSERT(s_instance == nullptr);
@@ -59,6 +71,8 @@ namespace Kernel
 
 	void SystemTimer::initialize_tsc()
 	{
+		if (CPUID::has_kvm_pvclock())
+			return initialize_pvclock();
 		if (CPUID::has_invariant_tsc())
 			return initialize_invariant_tsc();
 		dwarnln("No supported TSC based timers available");
@@ -108,6 +122,39 @@ namespace Kernel
 		dprintln("Initialized invariant TSC ({} Hz)", tsc_freq);
 	}
 
+	static pvclock_vcpu_time_info read_pvclock_safe(vaddr_t pvclock_vaddr)
+	{
+		for (;;)
+		{
+			const volatile auto& pvclock = *reinterpret_cast<const volatile pvclock_vcpu_time_info*>(pvclock_vaddr);
+
+			const auto version = pvclock.version;
+			if (version & 1)
+				continue;
+
+			pvclock_vcpu_time_info copy;
+			memcpy(&copy, const_cast<const pvclock_vcpu_time_info*>(&pvclock), sizeof(pvclock_vcpu_time_info));
+
+			if (pvclock.version == version)
+				return copy;
+		}
+	}
+
+	void SystemTimer::initialize_pvclock()
+	{
+		m_tsc_page = MUST(DMARegion::create(sizeof(pvclock_vcpu_time_info), PageTable::MemoryType::Normal));
+		memset(reinterpret_cast<void*>(m_tsc_page->vaddr()), 0, sizeof(pvclock_vcpu_time_info));
+
+		const uint32_t paddr_hi = m_tsc_page->paddr() >> 32;
+		const uint32_t paddr_lo = m_tsc_page->paddr() & 0xFFFFFFFF;
+		asm volatile("wrmsr" :: "d"(paddr_hi), "a"(paddr_lo | 1), "c"(0x4b564d01));
+
+		m_tsc_type = TSCType::PVClock;
+		Processor::initialize_tsc(m_boot_time);
+
+		dprintln("Initialized pvclock");
+	}
+
 	void SystemTimer::update_tsc()
 	{
 		if (m_tsc_type == TSCType::None)
@@ -136,6 +183,12 @@ namespace Kernel
 				return {
 					.shift = m_tsc_info.invariant.shift,
 					.mult  = m_tsc_info.invariant.mult,
+				};
+			case TSCType::PVClock:
+				const auto pvclock = read_pvclock_safe(m_tsc_page->vaddr());
+				return {
+					.shift = pvclock.tsc_shift,
+					.mult  = pvclock.tsc_to_system_mul,
 				};
 		}
 		ASSERT_NOT_REACHED();

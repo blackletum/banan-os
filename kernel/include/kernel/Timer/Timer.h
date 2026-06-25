@@ -2,6 +2,7 @@
 
 #include <BAN/UniqPtr.h>
 #include <BAN/Vector.h>
+#include <kernel/Memory/DMARegion.h>
 #include <kernel/Timer/RTC.h>
 
 #include <time.h>
@@ -69,12 +70,14 @@ namespace Kernel
 		void initialize_timers();
 
 		void initialize_invariant_tsc();
+		void initialize_pvclock();
 
 	private:
 		enum class TSCType
 		{
 			None,
 			Invariant,
+			PVClock,
 		};
 
 		uint64_t m_boot_time { 0 };
@@ -90,6 +93,7 @@ namespace Kernel
 			} invariant;
 		} m_tsc_info;
 
+		BAN::UniqPtr<DMARegion> m_tsc_page;
 		uint64_t m_tsc_update_ns { 0 };
 	};
 

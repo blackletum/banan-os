@@ -97,6 +97,16 @@ namespace CPUID
 		return static_cast<uint64_t>(buffer[2]) * buffer[1] / buffer[0];
 	}
 
+	bool has_kvm_pvclock()
+	{
+		uint32_t buffer[4] {};
+		get_cpuid(0x40000000, buffer);
+		if (buffer[1] != 0x4B4D564B || buffer[2] != 0x564B4D56 || buffer[3] != 0x4D)
+			return false;
+		get_cpuid(0x40000001, buffer);
+		return buffer[0] & (1 << 3);
+	}
+
 	const char* feature_string_ecx(uint32_t feat)
 	{
 		switch (feat)
