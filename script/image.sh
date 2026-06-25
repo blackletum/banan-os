@@ -39,11 +39,14 @@ fi
 
 if sudo mount "$ROOT_PARTITION" "$MOUNT_DIR"; then
 	if (($BANAN_INITRD)); then
-		fakeroot -i "$BANAN_FAKEROOT" tar -C "$BANAN_SYSROOT" -cf "$BANAN_SYSROOT.initrd" .
+		INITRD_FILE="$BANAN_BUILD_DIR/banan-os.initrd"
+		(($BANAN_INITRD > 1)) && COMPRESS_FLAGS='-z' || COMPRESS_FLAGS=''
+
+		fakeroot -i "$BANAN_FAKEROOT" tar -C "$BANAN_SYSROOT" --exclude='./boot' $COMPRESS_FLAGS -cf "$INITRD_FILE" .
 
 		sudo mkdir -p "$MOUNT_DIR/boot"
-		sudo cp "$BANAN_BUILD_DIR/kernel/banan-os.kernel" "$MOUNT_DIR/boot/banan-os.kernel"
-		sudo mv "$BANAN_SYSROOT.initrd" "$MOUNT_DIR/boot/banan-os.initrd"
+		sudo strip -o "$MOUNT_DIR/boot/banan-os.kernel" --strip-unneeded "$BANAN_BUILD_DIR/kernel/banan-os.kernel"
+		sudo cp "$INITRD_FILE" "$MOUNT_DIR/boot/banan-os.initrd"
 	else
 		sudo rsync -rulHpt "$BANAN_SYSROOT/" "$MOUNT_DIR"
 

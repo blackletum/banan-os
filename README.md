@@ -118,7 +118,7 @@ To change the bootloader you can set environment variable BANAN\_BOOTLOADER; sup
 
 To run with UEFI set environment variable BANAN\_UEFI\_BOOT=1. You will also have to set OVMF\_PATH to the correct OVMF (default */usr/share/ovmf/x64/OVMF.fd*).
 
-To build an image with no physical root filesystem, but an initrd set environment variable BANAN\_INITRD=1. This can be used when testing on hardware with unsupported USB controller.
+To build an image with no physical root filesystem, but an initrd set environment variable BANAN\_INITRD=1. This can be used when testing on hardware with unsupported USB controller. If BANAN\_INITRD is set to a value larger than 1, initrd will be gzip compressed.
 
 If you have corrupted your disk image or want to create new one, you can either manually delete *build/banan-os.img* and build system will automatically create you a new one or you can run the following command.
 ```sh
