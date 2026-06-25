@@ -46,7 +46,13 @@ int clock_gettime(clockid_t clock_id, struct timespec* tp)
 		if (old_seq & 1)
 			continue;
 
-		const auto monotonic_ns = lgettime.last_ns + (((__builtin_ia32_rdtsc() - lgettime.last_tsc) * sgettime.mult) >> sgettime.shift);
+		uint64_t monotonic_ns = __builtin_ia32_rdtsc() - lgettime.last_tsc;
+		if (lgettime.shift >= 0)
+			monotonic_ns <<= lgettime.shift;
+		else
+			monotonic_ns >>= -lgettime.shift;
+		monotonic_ns = (monotonic_ns * lgettime.mult) >> 32;
+		monotonic_ns += lgettime.last_ns;
 
 		if (old_seq != lgettime.seq || cpu != get_cpu())
 			continue;
@@ -57,7 +63,15 @@ int clock_gettime(clockid_t clock_id, struct timespec* tp)
 		};
 
 		if (clock_id == CLOCK_REALTIME)
-			tp->tv_sec += sgettime.realtime_seconds;
+		{
+			tp->tv_sec += sgettime.realtime_s;
+			tp->tv_nsec += sgettime.realtime_ns;
+			if (tp->tv_nsec >= 1'000'000'000)
+			{
+				tp->tv_sec += tp->tv_nsec / 1'000'000'000;
+				tp->tv_nsec = tp->tv_nsec % 1'000'000'000;
+			}
+		}
 
 		return 0;
 	}

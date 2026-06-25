@@ -124,7 +124,7 @@ namespace Kernel
 		static void yield();
 		static Scheduler& scheduler() { return *read_gs_sized<Scheduler*>(offsetof(Processor, m_scheduler)); }
 
-		static void initialize_tsc(uint8_t shift, uint64_t mult, uint64_t realtime_seconds);
+		static void initialize_tsc(uint64_t realtime_seconds);
 		static void update_tsc();
 		static uint64_t ns_since_boot_tsc();
 

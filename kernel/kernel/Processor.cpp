@@ -289,13 +289,11 @@ namespace Kernel
 		}
 	}
 
-	void Processor::initialize_tsc(uint8_t shift, uint64_t mult, uint64_t realtime_seconds)
+	void Processor::initialize_tsc(uint64_t realtime_seconds)
 	{
 		auto& shared_page = Processor::shared_page();
-
-		shared_page.gettime_shared.shift = shift;
-		shared_page.gettime_shared.mult = mult;
-		shared_page.gettime_shared.realtime_seconds = realtime_seconds;
+		shared_page.gettime_shared.realtime_s = realtime_seconds;
+		shared_page.gettime_shared.realtime_ns = 0;
 
 		update_tsc();
 
@@ -322,23 +320,57 @@ namespace Kernel
 
 	void Processor::update_tsc()
 	{
-		auto& sgettime = shared_page().cpus[current_index()].gettime_local;
-		sgettime.seq = sgettime.seq + 1;
-		sgettime.last_ns = SystemTimer::get().ns_since_boot_no_tsc();
-		sgettime.last_tsc = __builtin_ia32_rdtsc();
-		sgettime.seq = sgettime.seq + 1;
+		auto& lgettime = shared_page().cpus[current_index()].gettime_local;
+		lgettime.seq = lgettime.seq + 1;
+
+		if (lgettime.seq == 1)
+		{
+			const auto tsc_info = SystemTimer::get().tsc_info();
+			lgettime.shift = tsc_info.shift;
+			lgettime.mult  = tsc_info.mult;
+			lgettime.last_ns  = SystemTimer::get().ns_since_boot_no_tsc();
+			lgettime.last_tsc = __builtin_ia32_rdtsc();
+		}
+		else
+		{
+			const auto current_ns = SystemTimer::get().ns_since_boot_no_tsc();
+			const auto current_tsc = __builtin_ia32_rdtsc();
+
+			auto delta_ns = current_tsc - lgettime.last_tsc;
+			if (lgettime.shift >= 0)
+				delta_ns <<= lgettime.shift;
+			else
+				delta_ns >>= -lgettime.shift;
+			delta_ns = (delta_ns * lgettime.mult) >> 32;
+
+			lgettime.last_ns += delta_ns;
+			lgettime.last_tsc = current_tsc;
+
+			// scale mult by [-0.25%, 0.25%] to fix for clock drift
+			const auto error_ns = static_cast<int64_t>(current_ns) - static_cast<int64_t>(lgettime.last_ns);
+			const auto correction_ppm = BAN::Math::clamp<int64_t>(error_ns * 1'000'000 / 1'000'000'000, -100, 100);
+			const auto correction_delta = -lgettime.mult * correction_ppm / 1'000'000;
+			lgettime.mult += correction_delta;
+		}
+
+		lgettime.seq = lgettime.seq + 1;
 	}
 
 	uint64_t Processor::ns_since_boot_tsc()
 	{
 		const auto& shared_page = Processor::shared_page();
-		const auto& sgettime = shared_page.gettime_shared;
 		const auto& lgettime = shared_page.cpus[current_index()].gettime_local;
 
 		auto state = get_interrupt_state();
 		set_interrupt_state(InterruptState::Disabled);
 
-		const auto current_ns = lgettime.last_ns + (((__builtin_ia32_rdtsc() - lgettime.last_tsc) * sgettime.mult) >> sgettime.shift);
+		uint64_t current_ns = __builtin_ia32_rdtsc() - lgettime.last_tsc;
+		if (lgettime.shift >= 0)
+			current_ns <<= lgettime.shift;
+		else
+			current_ns >>= -lgettime.shift;
+		current_ns = (current_ns * lgettime.mult) >> 32;
+		current_ns += lgettime.last_ns;
 
 		set_interrupt_state(state);
 

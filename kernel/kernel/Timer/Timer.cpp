@@ -59,62 +59,65 @@ namespace Kernel
 
 	void SystemTimer::initialize_tsc()
 	{
-		if (!CPUID::has_invariant_tsc())
-		{
-			dwarnln("CPU does not have an invariant TSC");
-			return;
-		}
+		if (CPUID::has_invariant_tsc())
+			return initialize_invariant_tsc();
+		dwarnln("No supported TSC based timers available");
+	}
 
-		const uint64_t tsc_freq = get_tsc_frequency();
+	void SystemTimer::initialize_invariant_tsc()
+	{
+		const uint64_t tsc_freq = [this]() -> uint64_t {
+			if (const auto cpuid_freq = CPUID::get_tsc_frequency())
+				return cpuid_freq;
+
+			// take 5x 50 ms samples and use the median value
+
+			constexpr size_t tsc_sample_count = 5;
+			constexpr size_t tsc_sample_ns = 50'000'000;
+
+			uint64_t tsc_freq_samples[tsc_sample_count];
+			for (size_t i = 0; i < tsc_sample_count; i++)
+			{
+				const auto start_ns = m_timer->ns_since_boot();
+
+				const auto start_tsc = __builtin_ia32_rdtsc();
+				while (m_timer->ns_since_boot() < start_ns + tsc_sample_ns)
+					Processor::pause();
+				const auto stop_tsc = __builtin_ia32_rdtsc();
+
+				const auto stop_ns = m_timer->ns_since_boot();
+
+				const auto duration_ns = stop_ns - start_ns;
+				const auto count_tsc = stop_tsc - start_tsc;
+
+				tsc_freq_samples[i] = count_tsc * 1'000'000'000 / duration_ns;
+			}
+
+			BAN::sort::sort(tsc_freq_samples, tsc_freq_samples + tsc_sample_count);
+
+			return tsc_freq_samples[tsc_sample_count / 2];
+		}();
+
+		m_tsc_info = { .invariant = {
+			.shift = 0,
+			.mult  = static_cast<uint32_t>((1'000'000'000ull << 32) / tsc_freq),
+		}};
+		m_tsc_type = TSCType::Invariant;
+		Processor::initialize_tsc(m_boot_time);
 
 		dprintln("Initialized invariant TSC ({} Hz)", tsc_freq);
-
-		const uint8_t tsc_shift = 22;
-		const uint64_t tsc_mult = (static_cast<uint64_t>(1'000'000'000) << tsc_shift) / tsc_freq;
-		Processor::initialize_tsc(tsc_shift, tsc_mult, m_boot_time);
-
-		m_has_invariant_tsc = true;
 	}
 
-	uint64_t SystemTimer::get_tsc_frequency() const
+	void SystemTimer::update_tsc()
 	{
-		// take 5x 50 ms samples and use the median value
-
-		constexpr size_t tsc_sample_count = 5;
-		constexpr size_t tsc_sample_ns = 50'000'000;
-
-		uint64_t tsc_freq_samples[tsc_sample_count];
-		for (size_t i = 0; i < tsc_sample_count; i++)
-		{
-			const auto start_ns = m_timer->ns_since_boot();
-
-			const auto start_tsc = __builtin_ia32_rdtsc();
-			while (m_timer->ns_since_boot() < start_ns + tsc_sample_ns)
-				Processor::pause();
-			const auto stop_tsc = __builtin_ia32_rdtsc();
-
-			const auto stop_ns = m_timer->ns_since_boot();
-
-			const auto duration_ns = stop_ns - start_ns;
-			const auto count_tsc = stop_tsc - start_tsc;
-
-			tsc_freq_samples[i] = count_tsc * 1'000'000'000 / duration_ns;
-		}
-
-		BAN::sort::sort(tsc_freq_samples, tsc_freq_samples + tsc_sample_count);
-
-		return tsc_freq_samples[tsc_sample_count / 2];
-	}
-
-	void SystemTimer::update_tsc() const
-	{
-		if (!m_has_invariant_tsc)
+		if (m_tsc_type == TSCType::None)
 			return;
 
-		// only update every 100 ms
-		if (++m_timer_ticks < 100)
+		// only update once per second
+		const uint64_t current_ns = Processor::ns_since_boot_tsc();
+		if (current_ns < m_tsc_update_ns)
 			return;
-		m_timer_ticks = 0;
+		m_tsc_update_ns = current_ns + 1'000'000'000;
 
 		Processor::update_tsc();
 		Processor::broadcast_smp_message({
@@ -123,28 +126,38 @@ namespace Kernel
 		});
 	}
 
-	uint64_t SystemTimer::ns_since_boot_no_tsc() const
+	SystemTimer::TSCInfo SystemTimer::tsc_info() const
 	{
-		return m_timer->ns_since_boot();
+		switch (m_tsc_type)
+		{
+			case TSCType::None:
+				ASSERT_NOT_REACHED();
+			case TSCType::Invariant:
+				return {
+					.shift = m_tsc_info.invariant.shift,
+					.mult  = m_tsc_info.invariant.mult,
+				};
+		}
+		ASSERT_NOT_REACHED();
 	}
 
 	uint64_t SystemTimer::ms_since_boot() const
 	{
-		if (!m_has_invariant_tsc)
+		if (m_tsc_type == TSCType::None)
 			return m_timer->ms_since_boot();
 		return Processor::ns_since_boot_tsc() / 1'000'000;
 	}
 
 	uint64_t SystemTimer::ns_since_boot() const
 	{
-		if (!m_has_invariant_tsc)
+		if (m_tsc_type == TSCType::None)
 			return m_timer->ns_since_boot();
 		return Processor::ns_since_boot_tsc();
 	}
 
 	timespec SystemTimer::time_since_boot() const
 	{
-		if (!m_has_invariant_tsc)
+		if (m_tsc_type == TSCType::None)
 			return m_timer->time_since_boot();
 		const auto ns_since_boot = Processor::ns_since_boot_tsc();
 		return {

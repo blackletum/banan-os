@@ -31,6 +31,13 @@ namespace Kernel
 	class SystemTimer : public Timer
 	{
 	public:
+		struct TSCInfo
+		{
+			int8_t shift;
+			uint32_t mult;
+		};
+
+	public:
 		static void initialize();
 		static SystemTimer& get();
 		static bool is_initialized();
@@ -49,8 +56,10 @@ namespace Kernel
 
 		void dont_invoke_scheduler() { m_timer->m_should_invoke_scheduler = false; }
 
-		void update_tsc() const;
-		uint64_t ns_since_boot_no_tsc() const;
+		void update_tsc();
+		TSCInfo tsc_info() const;
+
+		uint64_t ns_since_boot_no_tsc() const { return m_timer->ns_since_boot(); }
 
 		timespec real_time() const;
 
@@ -59,14 +68,29 @@ namespace Kernel
 
 		void initialize_timers();
 
-		uint64_t get_tsc_frequency() const;
+		void initialize_invariant_tsc();
 
 	private:
+		enum class TSCType
+		{
+			None,
+			Invariant,
+		};
+
 		uint64_t m_boot_time { 0 };
 		BAN::UniqPtr<RTC> m_rtc;
 		BAN::UniqPtr<Timer> m_timer;
-		bool m_has_invariant_tsc { false };
-		mutable uint32_t m_timer_ticks { 0 };
+
+		TSCType m_tsc_type = TSCType::None;
+
+		union {
+			struct {
+				int8_t shift;
+				uint32_t mult;
+			} invariant;
+		} m_tsc_info;
+
+		uint64_t m_tsc_update_ns { 0 };
 	};
 
 }

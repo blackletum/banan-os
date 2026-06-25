@@ -85,6 +85,18 @@ namespace CPUID
 		return buffer[3] & (1 << 8);
 	}
 
+	uint64_t get_tsc_frequency()
+	{
+		uint32_t buffer[4];
+		get_cpuid(0x00, buffer);
+		if (buffer[0] < 0x15)
+			return 0;
+		get_cpuid(0x15, buffer);
+		if (buffer[0] == 0 || buffer[1] == 0 || buffer[2] == 0)
+			return 0;
+		return static_cast<uint64_t>(buffer[2]) * buffer[1] / buffer[0];
+	}
+
 	const char* feature_string_ecx(uint32_t feat)
 	{
 		switch (feat)

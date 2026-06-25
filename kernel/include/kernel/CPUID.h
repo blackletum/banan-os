@@ -82,5 +82,6 @@ namespace CPUID
 	bool has_pat();
 	bool has_1gib_pages();
 	bool has_invariant_tsc();
+	uint64_t get_tsc_frequency();
 
 }

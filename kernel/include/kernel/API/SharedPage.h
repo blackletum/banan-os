@@ -18,9 +18,8 @@ namespace Kernel::API
 
 		struct
 		{
-			uint8_t shift;
-			uint64_t mult;
-			uint64_t realtime_seconds;
+			uint64_t realtime_s;
+			uint32_t realtime_ns;
 		} gettime_shared;
 
 		struct
@@ -28,6 +27,8 @@ namespace Kernel::API
 			struct
 			{
 				uint32_t seq;
+				uint32_t mult;
+				int8_t shift;
 				uint64_t last_ns;
 				uint64_t last_tsc;
 			} gettime_local;
