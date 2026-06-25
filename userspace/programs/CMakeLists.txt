@@ -47,6 +47,7 @@ set(USERSPACE_PROGRAMS
 	sync
 	tee
 	test
+	top
 	tr
 	true
 	TaskBar
