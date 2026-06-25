@@ -574,6 +574,25 @@ namespace Kernel
 		return read_from_vec_of_str(m_environ, offset, buffer);
 	}
 
+	size_t Process::proc_cputime(off_t offset, BAN::ByteSpan buffer) const
+	{
+		const uint64_t cpu_time_ns = [this] {
+			uint64_t cpu_time_ns { 0 };
+			LockGuard _(m_process_lock);
+			for (auto* thread : m_threads)
+				cpu_time_ns += thread->cpu_time_ns();
+			return cpu_time_ns;
+		}();
+
+		auto data = MUST(BAN::String::formatted("{}", cpu_time_ns));
+		if (static_cast<size_t>(offset) >= data.size() + 1)
+			return 0;
+
+		const size_t to_copy = BAN::Math::min<size_t>(data.size() - offset + 1, buffer.size());
+		memcpy(buffer.data(), data.data(), to_copy);
+		return to_copy;
+	}
+
 	BAN::ErrorOr<BAN::String> Process::proc_cwd() const
 	{
 		LockGuard _(m_process_lock);
