@@ -15,7 +15,7 @@ CONFIGURE_OPTIONS=(
 )
 
 pre_configure() {
-	llvm_version='20.1.8'
+	llvm_version='22.1.8'
 	llvm_dir_name="llvm-banan_os-$llvm_version-$BANAN_ARCH"
 
 	if [ ! -d "../$llvm_dir_name" ]; then
@@ -75,8 +75,4 @@ build() {
 
 install() {
 	meson install --destdir="$DESTDIR" -C build || exit 1
-
-	mkdir -p "$DESTDIR/usr/lib/pkgconfig"
-	ln -sf osmesa.pc $DESTDIR/usr/lib/pkgconfig/opengl.pc
-	ln -sf libOSMesa.so $DESTDIR/usr/lib/libGL.so
 }

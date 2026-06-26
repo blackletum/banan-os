@@ -1,31 +1,32 @@
-diff -ruN llvm-project-20.1.8.src/llvm/include/llvm/ADT/bit.h llvm-project-20.1.8.src-banan_os/llvm/include/llvm/ADT/bit.h
---- llvm-project-20.1.8.src/llvm/include/llvm/ADT/bit.h	2025-07-09 02:06:32.000000000 +0300
-+++ llvm-project-20.1.8.src-banan_os/llvm/include/llvm/ADT/bit.h	2025-08-03 17:05:07.723852159 +0300
-@@ -29,7 +29,7 @@
+diff -ruN llvm-22.1.8/llvm/include/llvm/ADT/bit.h llvm-22.1.8-banan_os/llvm/include/llvm/ADT/bit.h
+--- llvm-22.1.8/llvm/include/llvm/ADT/bit.h	2026-06-16 01:33:53.000000000 +0300
++++ llvm-22.1.8-banan_os/llvm/include/llvm/ADT/bit.h	2026-06-26 20:05:01.569826765 +0300
+@@ -30,7 +30,8 @@
  
  #if defined(__linux__) || defined(__GNU__) || defined(__HAIKU__) ||            \
      defined(__Fuchsia__) || defined(__EMSCRIPTEN__) || defined(__NetBSD__) ||  \
--    defined(__OpenBSD__) || defined(__DragonFly__)
-+    defined(__OpenBSD__) || defined(__DragonFly__) || defined(__banan_os__)
+-    defined(__OpenBSD__) || defined(__DragonFly__) || defined(__managarm__)
++    defined(__OpenBSD__) || defined(__DragonFly__) || defined(__managarm__) || \
++    defined(__banan_os__)
  #include <endian.h>
  #elif defined(_AIX)
  #include <sys/machine.h>
-diff -ruN llvm-project-20.1.8.src/llvm/include/llvm/Support/ExitCodes.h llvm-project-20.1.8.src-banan_os/llvm/include/llvm/Support/ExitCodes.h
---- llvm-project-20.1.8.src/llvm/include/llvm/Support/ExitCodes.h	2025-07-09 02:06:32.000000000 +0300
-+++ llvm-project-20.1.8.src-banan_os/llvm/include/llvm/Support/ExitCodes.h	2025-08-03 17:05:35.659696821 +0300
-@@ -20,6 +20,8 @@
+diff -ruN llvm-22.1.8/llvm/include/llvm/Support/ExitCodes.h llvm-22.1.8-banan_os/llvm/include/llvm/Support/ExitCodes.h
+--- llvm-22.1.8/llvm/include/llvm/Support/ExitCodes.h	2026-06-16 01:33:53.000000000 +0300
++++ llvm-22.1.8-banan_os/llvm/include/llvm/Support/ExitCodes.h	2026-06-26 20:05:11.472186824 +0300
+@@ -20,7 +20,7 @@
  
  #if HAVE_SYSEXITS_H
  #include <sysexits.h>
-+#elif defined(__banan_os__)
-+#define EX_IOERR 69
- #elif __MVS__ || defined(_WIN32)
+-#elif __MVS__ || defined(_WIN32)
++#elif __MVS__ || defined(_WIN32) || defined(__banan_os__)
  // <sysexits.h> does not exist on z/OS and Windows. The only value used in LLVM
  // is EX_IOERR, which is used to signal a special error condition (broken pipe).
-diff -ruN llvm-project-20.1.8.src/llvm/lib/Support/Unix/Path.inc llvm-project-20.1.8.src-banan_os/llvm/lib/Support/Unix/Path.inc
---- llvm-project-20.1.8.src/llvm/lib/Support/Unix/Path.inc	2025-07-09 02:06:32.000000000 +0300
-+++ llvm-project-20.1.8.src-banan_os/llvm/lib/Support/Unix/Path.inc	2025-08-03 17:06:42.941322766 +0300
-@@ -107,7 +107,7 @@
+ // Define the macro with its usual value from BSD systems, which is chosen to
+diff -ruN llvm-22.1.8/llvm/lib/Support/Unix/Path.inc llvm-22.1.8-banan_os/llvm/lib/Support/Unix/Path.inc
+--- llvm-22.1.8/llvm/lib/Support/Unix/Path.inc	2026-06-16 01:33:53.000000000 +0300
++++ llvm-22.1.8-banan_os/llvm/lib/Support/Unix/Path.inc	2026-06-26 20:22:57.780776278 +0300
+@@ -111,7 +111,7 @@
  #endif
  
  #if defined(__NetBSD__) || defined(__DragonFly__) || defined(__GNU__) ||       \
@@ -34,30 +35,54 @@ diff -ruN llvm-project-20.1.8.src/llvm/lib/Support/Unix/Path.inc llvm-project-20
  #define STATVFS_F_FLAG(vfs) (vfs).f_flag
  #else
  #define STATVFS_F_FLAG(vfs) (vfs).f_flags
-@@ -317,6 +317,9 @@
+@@ -254,7 +254,7 @@
+   if (getprogpath(exe_path, argv0) != NULL)
+     return exe_path;
+ #elif defined(__linux__) || defined(__CYGWIN__) || defined(__gnu_hurd__) ||    \
+-    defined(__managarm__)
++    defined(__managarm__) || defined(__banan_os__)
+   char exe_path[PATH_MAX];
+   const char *aPath = "/proc/self/exe";
+   if (sys::fs::exists(aPath)) {
+@@ -284,9 +284,11 @@
        return std::string(real_path);
-     break; // Found entry, but realpath failed.
+ #endif
    }
-+#elif defined(__banan_os__)
-+  fprintf(stddbg, "TODO: getMainExecutable\n");
-+  return "";
- #elif defined(HAVE_DLOPEN)
-   // Use dladdr to get executable path if available.
-   Dl_info DLInfo;
-@@ -506,6 +509,9 @@
++#if !defined(__banan_os__)
+   // Fall back to the classical detection.
+   if (getprogpath(exe_path, argv0))
+     return exe_path;
++#endif
+ #elif defined(__OpenBSD__) || defined(__HAIKU__)
+   char exe_path[PATH_MAX];
+   // argv[0] only
+@@ -520,6 +522,9 @@
  #elif defined(__HAIKU__)
    // Haiku doesn't expose this information.
    return false;
 +#elif defined(__banan_os__)
-+  // banan-os doesn't currently support remote filesystem mounts.
-+  return true;
++  // banan-os doesn't expose this information.
++  return false;
  #elif defined(__sun)
    // statvfs::f_basetype contains a null-terminated FSType name of the mounted
    // target
-diff -ruN llvm-project-20.1.8.src/llvm/lib/Support/Unix/Program.inc llvm-project-20.1.8.src-banan_os/llvm/lib/Support/Unix/Program.inc
---- llvm-project-20.1.8.src/llvm/lib/Support/Unix/Program.inc	2025-07-09 02:06:32.000000000 +0300
-+++ llvm-project-20.1.8.src-banan_os/llvm/lib/Support/Unix/Program.inc	2025-08-03 17:04:50.500947936 +0300
-@@ -342,7 +342,7 @@
+diff -ruN llvm-22.1.8/llvm/lib/Support/Unix/Process.inc llvm-22.1.8-banan_os/llvm/lib/Support/Unix/Process.inc
+--- llvm-22.1.8/llvm/lib/Support/Unix/Process.inc	2026-06-16 01:33:53.000000000 +0300
++++ llvm-22.1.8-banan_os/llvm/lib/Support/Unix/Process.inc	2026-06-26 20:19:55.915545542 +0300
+@@ -37,6 +37,9 @@
+ #ifdef HAVE_SYS_IOCTL_H
+ #include <sys/ioctl.h>
+ #endif
++#ifdef __banan_os__
++#include <termios.h>
++#endif
+ 
+ //===----------------------------------------------------------------------===//
+ //=== WARNING: Implementation here must contain only generic UNIX code that
+diff -ruN llvm-22.1.8/llvm/lib/Support/Unix/Program.inc llvm-22.1.8-banan_os/llvm/lib/Support/Unix/Program.inc
+--- llvm-22.1.8/llvm/lib/Support/Unix/Program.inc	2026-06-16 01:33:53.000000000 +0300
++++ llvm-22.1.8-banan_os/llvm/lib/Support/Unix/Program.inc	2026-06-26 20:05:22.461478923 +0300
+@@ -334,7 +334,7 @@
  namespace llvm {
  namespace sys {
  
@@ -66,42 +91,28 @@ diff -ruN llvm-project-20.1.8.src/llvm/lib/Support/Unix/Program.inc llvm-project
  static pid_t(wait4)(pid_t pid, int *status, int options, struct rusage *usage);
  #elif !defined(__Fuchsia__)
  using ::wait4;
-@@ -383,6 +383,17 @@
+@@ -375,6 +375,12 @@
    // would cause the call here to fail with ECHILD).
    return ::wait4(pid, status, options & ~WNOHANG, usage);
  }
 +#elif defined(__banan_os__)
-+
-+#ifndef _ALL_SOURCE
-+extern "C" pid_t(wait4)(pid_t pid, int *status, int options,
-+                        struct rusage *usage);
-+#endif
 +pid_t(llvm::sys::wait4)(pid_t pid, int *status, int options,
 +                        struct rusage *usage) {
 +    memset(usage, 0, sizeof(struct rusage));
-+       return waitpid(pid, status, options);
++    return ::waitpid(pid, status, options);
 +}
  #endif
  
  ProcessInfo llvm::sys::Wait(const ProcessInfo &PI,
-@@ -468,7 +479,7 @@
-     std::chrono::microseconds UserT = toDuration(Info.ru_utime);
-     std::chrono::microseconds KernelT = toDuration(Info.ru_stime);
-     uint64_t PeakMemory = 0;
--#if !defined(__HAIKU__) && !defined(__MVS__)
-+#if !defined(__HAIKU__) && !defined(__MVS__) && !defined(__banan_os__)
-     PeakMemory = static_cast<uint64_t>(Info.ru_maxrss);
- #endif
-     *ProcStat = ProcessStatistics{UserT + KernelT, UserT, PeakMemory};
-diff -ruN llvm-project-20.1.8.src/llvm/lib/Support/Unix/Signals.inc llvm-project-20.1.8.src-banan_os/llvm/lib/Support/Unix/Signals.inc
---- llvm-project-20.1.8.src/llvm/lib/Support/Unix/Signals.inc	2025-07-09 02:06:32.000000000 +0300
-+++ llvm-project-20.1.8.src-banan_os/llvm/lib/Support/Unix/Signals.inc	2025-08-03 17:03:20.739447219 +0300
-@@ -817,7 +817,7 @@
-   OS << "Stack dump without symbol names (ensure you have llvm-symbolizer in "
-         "your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point "
-         "to it):\n";
--#if HAVE_DLOPEN && !defined(_AIX)
-+#if HAVE_DLOPEN && !defined(_AIX) && !defined(__banan_os__)
-   int width = 0;
-   for (int i = 0; i < depth; ++i) {
-     Dl_info dlinfo;
+diff -ruN llvm-22.1.8/llvm/lib/Support/Unix/Threading.inc llvm-22.1.8-banan_os/llvm/lib/Support/Unix/Threading.inc
+--- llvm-22.1.8/llvm/lib/Support/Unix/Threading.inc	2026-06-16 01:33:53.000000000 +0300
++++ llvm-22.1.8-banan_os/llvm/lib/Support/Unix/Threading.inc	2026-06-26 20:10:24.025022264 +0300
+@@ -121,7 +121,7 @@
+ 
+ pthread_t llvm_thread_get_id_impl(pthread_t Thread) { return Thread; }
+ 
+-pthread_t llvm_thread_get_current_id_impl() { return ::pthread_self(); }
++pthread_t llvm_thread_get_current_id_impl() { return pthread_self(); }
+ 
+ } // namespace llvm
+ 
