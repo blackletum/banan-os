@@ -135,17 +135,50 @@ void WindowServer::on_window_invalidate(int fd, const LibGUI::WindowPacket::Wind
 	if (!target_window->get_attributes().shown)
 		return;
 
-	const auto client_area = target_window->client_area();
+	BAN::Optional<Rectangle> damaged_area;
 
-	const Rectangle damaged_area {
-		.min_x = client_area.min_x + static_cast<int32_t>(packet.x),
-		.min_y = client_area.min_y + static_cast<int32_t>(packet.y),
-		.max_x = client_area.min_x + static_cast<int32_t>(packet.x + packet.width),
-		.max_y = client_area.min_y + static_cast<int32_t>(packet.y + packet.height),
-	};
+	if (m_state == State::Fullscreen)
+	{
+		if (target_window->client_width() == m_framebuffer.width && target_window->client_height() == m_framebuffer.height)
+		{
+			damaged_area = Rectangle {
+				.min_x = static_cast<int32_t>(packet.x),
+				.min_y = static_cast<int32_t>(packet.y),
+				.max_x = static_cast<int32_t>(packet.x + packet.width),
+				.max_y = static_cast<int32_t>(packet.y + packet.height),
+			};
+		}
+		else
+		{
+			const float scale = BAN::Math::min(
+				static_cast<float>(m_framebuffer.width)  / m_focused_window->client_width(),
+				static_cast<float>(m_framebuffer.height) / m_focused_window->client_height()
+			);
 
-	if (auto opt_overlap = damaged_area.get_overlap(client_area); opt_overlap.has_value())
-		add_damaged_area(opt_overlap.release_value());
+			const float offset_x = (m_framebuffer.width  - m_focused_window->client_width()  * scale) / 2.0f;
+			const float offset_y = (m_framebuffer.height - m_focused_window->client_height() * scale) / 2.0f;
+
+			damaged_area = Rectangle {
+				.min_x = static_cast<int32_t>(BAN::Math::floor(packet.x                  * scale + offset_x)),
+				.min_y = static_cast<int32_t>(BAN::Math::floor(packet.y                  * scale + offset_y)),
+				.max_x = static_cast<int32_t>(BAN::Math::ceil((packet.x + packet.width)  * scale + offset_x)),
+				.max_y = static_cast<int32_t>(BAN::Math::ceil((packet.y + packet.height) * scale + offset_y)),
+			};
+		}
+	}
+	else
+	{
+		const auto client_area = target_window->client_area();
+		damaged_area = client_area.get_overlap({
+			.min_x = client_area.min_x + static_cast<int32_t>(packet.x),
+			.min_y = client_area.min_y + static_cast<int32_t>(packet.y),
+			.max_x = client_area.min_x + static_cast<int32_t>(packet.x + packet.width),
+			.max_y = client_area.min_y + static_cast<int32_t>(packet.y + packet.height),
+		});
+	}
+
+	if (damaged_area.has_value())
+		add_damaged_area(damaged_area.release_value());
 }
 
 void WindowServer::on_window_set_position(int fd, const LibGUI::WindowPacket::WindowSetPosition& packet)
@@ -197,7 +230,6 @@ void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::
 		{
 			if (!resize_window(m_focused_window, m_non_full_screen_rect.width(), m_non_full_screen_rect.height()))
 				return;
-			move_window(m_focused_window, m_non_full_screen_rect.min_x, m_non_full_screen_rect.min_y);
 		}
 
 		m_focused_window = nullptr;
@@ -321,7 +353,6 @@ void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::
 		{
 			if (!resize_window(m_focused_window, m_non_full_screen_rect.width(), m_non_full_screen_rect.height()))
 				return;
-			move_window(m_focused_window, m_non_full_screen_rect.min_x, m_non_full_screen_rect.min_y);
 		}
 
 		const LibGUI::EventPacket::WindowFullscreenEvent event_packet { .event = {
@@ -355,7 +386,6 @@ void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::
 		const auto old_area = target_window->client_area();
 		if (!resize_window(target_window, m_framebuffer.width, m_framebuffer.height))
 			return;
-		move_window(target_window, 0, 0);
 		m_non_full_screen_rect = old_area;
 	}
 
@@ -521,7 +551,6 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 			{
 				if (!resize_window(m_focused_window, m_non_full_screen_rect.width(), m_non_full_screen_rect.height()))
 					return;
-				move_window(m_focused_window, m_non_full_screen_rect.min_x, m_non_full_screen_rect.min_y);
 			}
 			m_state = State::Normal;
 		}
@@ -532,7 +561,6 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 				const auto old_area = m_focused_window->client_area();
 				if (!resize_window(m_focused_window, m_framebuffer.width, m_framebuffer.height))
 					return;
-				move_window(m_focused_window, 0, 0);
 				m_non_full_screen_rect = old_area;
 			}
 			m_state = State::Fullscreen;
@@ -941,6 +969,8 @@ static void alpha_blend4(const uint32_t color_a[4], const uint32_t color_b[4], u
 
 void WindowServer::invalidate(Rectangle area)
 {
+	ASSERT(area.get_bounding_box(m_framebuffer.area()) == m_framebuffer.area());
+
 	const Window::Cursor* window_cursor = nullptr;
 	if (auto window = this->find_hovered_window(); window && window->has_cursor())
 		window_cursor = &window->cursor();
@@ -969,26 +999,10 @@ void WindowServer::invalidate(Rectangle area)
 	if (m_state == State::Fullscreen)
 	{
 		ASSERT(m_focused_window);
-		area.min_x -= m_focused_window->client_x();
-		area.max_x -= m_focused_window->client_x();
-		area.min_y -= m_focused_window->client_y();
-		area.max_y -= m_focused_window->client_y();
-
-		const Rectangle client_area {
-			.min_x = 0,
-			.min_y = 0,
-			.max_x = m_focused_window->client_width(),
-			.max_y = m_focused_window->client_height(),
-		};
-
-		auto focused_overlap = area.get_overlap(client_area);
-		if (!focused_overlap.has_value())
-			return;
-		area = focused_overlap.release_value();
 
 		const bool should_alpha_blend = m_focused_window->get_attributes().alpha_channel;
 
-		if (client_area == m_framebuffer.area())
+		if (m_focused_window->client_width() == m_framebuffer.width && m_focused_window->client_height() == m_framebuffer.height)
 		{
 			const uint32_t* client_ptr = m_focused_window->framebuffer();
 			const size_t client_width = m_focused_window->client_width();
@@ -1032,28 +1046,38 @@ void WindowServer::invalidate(Rectangle area)
 		}
 		else
 		{
-			auto opt_dst_area = Rectangle {
-				.min_x = area.min_x * m_framebuffer.width  / m_focused_window->client_width(),
-				.min_y = area.min_y * m_framebuffer.height / m_focused_window->client_height(),
-				.max_x = BAN::Math::div_round_up(area.max_x * m_framebuffer.width,  m_focused_window->client_width()),
-				.max_y = BAN::Math::div_round_up(area.max_y * m_framebuffer.height, m_focused_window->client_height())
-			}.get_overlap(m_framebuffer.area());
-			if (!opt_dst_area.has_value())
-				return;
+			const float scale = BAN::Math::min(
+				static_cast<float>(m_framebuffer.width)  / m_focused_window->client_width(),
+				static_cast<float>(m_framebuffer.height) / m_focused_window->client_height()
+			);
 
-			const auto dst_area = opt_dst_area.release_value();
-			for (int32_t dst_y = dst_area.min_y; dst_y < dst_area.max_y; dst_y++)
+			const float offset_x = (m_framebuffer.width  - m_focused_window->client_width()  * scale) / 2.0f;
+			const float offset_y = (m_framebuffer.height - m_focused_window->client_height() * scale) / 2.0f;
+
+			const Rectangle window_area {
+				.min_x = 0,
+				.min_y = 0,
+				.max_x = m_focused_window->client_width(),
+				.max_y = m_focused_window->client_height(),
+			};
+
+			const float inv_scale = 1.0f / scale;
+			for (int32_t dst_y = area.min_y; dst_y < area.max_y; dst_y++)
 			{
-				for (int32_t dst_x = dst_area.min_x; dst_x < dst_area.max_x; dst_x++)
+				for (int32_t dst_x = area.min_x; dst_x < area.max_x; dst_x++)
 				{
-					const int32_t src_x = BAN::Math::clamp<int32_t>(dst_x * m_focused_window->client_width()  / m_framebuffer.width,  0, m_focused_window->client_width());
-					const int32_t src_y = BAN::Math::clamp<int32_t>(dst_y * m_focused_window->client_height() / m_framebuffer.height, 0, m_focused_window->client_height());
+					const int32_t src_x = (dst_x - offset_x) * inv_scale;
+					const int32_t src_y = (dst_y - offset_y) * inv_scale;
+					if (!window_area.contains({ .x = src_x, .y = src_y }))
+					{
+						m_framebuffer.mmap[dst_y * m_framebuffer.width + dst_x] = 0x000000;
+						continue;
+					}
 
 					const uint32_t src_pixel = m_focused_window->framebuffer()[src_y * m_focused_window->client_width() + src_x];
-					const uint32_t bg_pixel = m_background_image[dst_y * m_framebuffer.width + dst_x];
-
-					uint32_t& dst_pixel = m_framebuffer.mmap[dst_y * m_framebuffer.width + dst_x];
-					dst_pixel = should_alpha_blend ? alpha_blend(src_pixel, bg_pixel) : src_pixel;
+					m_framebuffer.mmap[dst_y * m_framebuffer.width + dst_x] = should_alpha_blend
+						? alpha_blend(src_pixel, m_background_image[dst_y * m_framebuffer.width + dst_x])
+						: src_pixel;
 				}
 			}
 		}
@@ -1093,11 +1117,6 @@ void WindowServer::invalidate(Rectangle area)
 
 		return;
 	}
-
-	auto fb_overlap = area.get_overlap(m_framebuffer.area());
-	if (!fb_overlap.has_value())
-		return;
-	area = fb_overlap.release_value();
 
 	for (int32_t y = area.min_y; y < area.max_y; y++)
 	{
