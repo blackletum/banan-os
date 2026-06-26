@@ -164,7 +164,7 @@ namespace Kernel
 				}
 				return block_from_indirect_block_no_lock(block, data_block_index, i + 1, allocate);
 			}
-			data_block_index -= indices_per_block;
+			data_block_index -= depth_block_count;
 			depth_block_count *= indices_per_block;
 		}
 
@@ -916,6 +916,8 @@ needs_new_block:
 
 		auto inode_location = TRY(m_fs.locate_inode(ino()));
 		auto block_buffer = TRY(m_fs.get_block_buffer());
+
+		// FIXME: race condition when syncing multiple inodes :)
 
 		TRY(m_fs.read_block(inode_location.block, block_buffer));
 		if (memcmp(block_buffer.data() + inode_location.offset, &inode, sizeof(Ext2::Inode)))
