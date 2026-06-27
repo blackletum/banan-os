@@ -47,14 +47,15 @@ namespace Kernel
 
 		TRY(reset());
 
+		// disable rx, tx, checksum offload
+		m_io_bar_region->write16(RTL8169_IO_CPlusCR, 0x0000);
+		m_io_bar_region->write8 (RTL8169_IO_CR,      0x00);
+
 		dprintln("  reset done");
 
 		for (size_t i = 0; i < 6; i++)
 			m_mac_address.address[i] = m_io_bar_region->read8(RTL8169_IO_IDR0 + i);
 		dprintln("  MAC {}", m_mac_address);
-
-		// unlock config registers
-		m_io_bar_region->write8(RTL8169_IO_9346CR, RTL8169_9346CR_MODE_CONFIG);
 
 		TRY(initialize_rx());
 		TRY(initialize_tx());
@@ -62,14 +63,12 @@ namespace Kernel
 		dprintln("  descriptors initialized");
 
 		m_link_up = m_io_bar_region->read8(RTL8169_IO_PHYSts) & RTL8169_PHYSts_LinkSts;
-		if (m_link_up)
+		dprintln("  link status {}", link_up() ? "UP" : "DOWN");
+		if (link_up())
 			dprintln("  link speed {}", link_speed());
 
 		TRY(enable_interrupt());
 		dprintln("  interrupts enabled");
-
-		// lock config registers
-		m_io_bar_region->write8(RTL8169_IO_9346CR, RTL8169_9346CR_MODE_NORMAL);
 
 		auto* thread = TRY(Thread::create_kernel([](void* rtl8169_ptr) {
 			static_cast<RTL8169*>(rtl8169_ptr)->receive_thread();
@@ -79,17 +78,17 @@ namespace Kernel
 			delete thread;
 			return ret.release_error();
 		}
-		m_thread_is_dead = false;
+		m_rx_thread_is_dead = false;
 
 		return {};
 	}
 
 	RTL8169::~RTL8169()
 	{
-		m_thread_should_die = true;
-		m_thread_blocker.unblock();
+		m_rx_thread_should_die = true;
+		m_rx_blocker.unblock();
 
-		while (!m_thread_is_dead)
+		while (!m_rx_thread_is_dead)
 			Processor::yield();
 	}
 
@@ -110,31 +109,25 @@ namespace Kernel
 		m_rx_buffer_region = TRY(DMARegion::create(m_rx_descriptor_count * s_buffer_size, PageTable::MemoryType::Normal));
 		m_rx_descriptor_region = TRY(DMARegion::create(m_rx_descriptor_count * sizeof(RTL8169Descriptor)));
 
+		auto* rx_descriptors = reinterpret_cast<volatile RTL8169Descriptor*>(m_rx_descriptor_region->vaddr());
 		for (size_t i = 0; i < m_rx_descriptor_count; i++)
 		{
 			const paddr_t rx_buffer_paddr = m_rx_buffer_region->paddr() + i * s_buffer_size;
-
-			uint32_t command = 0x1FF8 | RTL8169_DESC_CMD_OWN;
-			if (i == m_rx_descriptor_count - 1)
-				command |= RTL8169_DESC_CMD_EOR;
-
-			auto& rx_descriptor = reinterpret_cast<volatile RTL8169Descriptor*>(m_rx_descriptor_region->vaddr())[i];
-			rx_descriptor.command     = command;
-			rx_descriptor.vlan        = 0;
-			rx_descriptor.buffer_low  = rx_buffer_paddr & 0xFFFFFFFF;
-			rx_descriptor.buffer_high = rx_buffer_paddr >> 32;
+			rx_descriptors[i].command     = 0x1FF8 | RTL8169_DESC_CMD_OWN;
+			rx_descriptors[i].vlan        = 0;
+			rx_descriptors[i].buffer_low  = rx_buffer_paddr & 0xFFFFFFFF;
+			rx_descriptors[i].buffer_high = rx_buffer_paddr >> 32;
 		}
+		rx_descriptors[m_rx_descriptor_count - 1].command |= RTL8169_DESC_CMD_EOR;
 
 		// configure rx descriptor addresses
-		m_io_bar_region->write32(RTL8169_IO_RDSAR + 0, m_rx_descriptor_region->paddr() & 0xFFFFFFFF);
 		m_io_bar_region->write32(RTL8169_IO_RDSAR + 4, m_rx_descriptor_region->paddr() >> 32);
+		m_io_bar_region->write32(RTL8169_IO_RDSAR + 0, m_rx_descriptor_region->paddr() & 0xFFFFFFFF);
 
-		// configure receibe control (no fifo threshold, max dma burst 1024, accept physical match, broadcast, multicast)
+		// configure receive control (no fifo threshold, max dma burst unlimited, broadcast, multicast, accept physical match)
 		m_io_bar_region->write32(RTL8169_IO_RCR,
-			RTL8169_RCR_RXFTH_NO | RTL8169_RCR_MXDMA_1024 | RTL8169_RCR_AB | RTL8169_RCR_AM | RTL8169_RCR_APM
+			RTL8169_RCR_RXFTH_NO | RTL8169_RCR_MXDMA_UNLIMITED | RTL8169_RCR_AB | RTL8169_RCR_AM | RTL8169_RCR_APM
 		);
-
-		m_io_bar_region->write32(0x44, 0b111111 | (0b111 << 8) | (0b111 << 13));
 
 		// configure max rx packet size
 		m_io_bar_region->write16(RTL8169_IO_RMS, RTL8169_RMS_MAX);
@@ -147,27 +140,23 @@ namespace Kernel
 		m_tx_buffer_region = TRY(DMARegion::create(m_tx_descriptor_count * s_buffer_size, PageTable::MemoryType::Normal));
 		m_tx_descriptor_region = TRY(DMARegion::create(m_tx_descriptor_count * sizeof(RTL8169Descriptor)));
 
+		auto* tx_descriptors = reinterpret_cast<volatile RTL8169Descriptor*>(m_tx_descriptor_region->vaddr());
 		for (size_t i = 0; i < m_tx_descriptor_count; i++)
 		{
 			const paddr_t tx_buffer_paddr = m_tx_buffer_region->paddr() + i * s_buffer_size;
-
-			uint32_t command = 0;
-			if (i == m_tx_descriptor_count - 1)
-				command |= RTL8169_DESC_CMD_EOR;
-
-			auto& tx_descriptor = reinterpret_cast<volatile RTL8169Descriptor*>(m_tx_descriptor_region->vaddr())[i];
-			tx_descriptor.command     = command;
-			tx_descriptor.vlan        = 0;
-			tx_descriptor.buffer_low  = tx_buffer_paddr & 0xFFFFFFFF;
-			tx_descriptor.buffer_high = tx_buffer_paddr >> 32;
+			tx_descriptors[i].command     = 0;
+			tx_descriptors[i].vlan        = 0;
+			tx_descriptors[i].buffer_low  = tx_buffer_paddr & 0xFFFFFFFF;
+			tx_descriptors[i].buffer_high = tx_buffer_paddr >> 32;
 		}
+		tx_descriptors[m_tx_descriptor_count - 1].command |= RTL8169_DESC_CMD_EOR;
 
 		// configure tx descriptor addresses
-		m_io_bar_region->write32(RTL8169_IO_TNPDS + 0, m_tx_descriptor_region->paddr() & 0xFFFFFFFF);
 		m_io_bar_region->write32(RTL8169_IO_TNPDS + 4, m_tx_descriptor_region->paddr() >> 32);
+		m_io_bar_region->write32(RTL8169_IO_TNPDS + 0, m_tx_descriptor_region->paddr() & 0xFFFFFFFF);
 
-		// configure transmit control (standard ifg, max dma burst 1024)
-		m_io_bar_region->write32(RTL8169_IO_TCR, RTL8169_TCR_IFG_0 | RTL8169_TCR_MXDMA_1024);
+		// configure transmit control (standard ifg, max dma burst unlimited)
+		m_io_bar_region->write32(RTL8169_IO_TCR, RTL8169_TCR_IFG_0 | RTL8169_TCR_MXDMA_UNLIMITED);
 
 		// configure max tx packet size
 		m_io_bar_region->write8(RTL8169_IO_MTPS, RTL8169_MTPS_MAX);
@@ -181,14 +170,13 @@ namespace Kernel
 		m_pci_device.enable_interrupt(0, *this);
 
 		m_io_bar_region->write16(RTL8169_IO_IMR,
-			RTL8169_IR_ROK
-			| RTL8169_IR_RER
-			| RTL8169_IR_TOK
-			| RTL8169_IR_TER
-			| RTL8169_IR_RDU
-			| RTL8169_IR_LinkChg
-			| RTL8169_IR_FVOW
-			| RTL8169_IR_TDU
+			RTL8169_IR_ROK |
+			RTL8169_IR_RER |
+			RTL8169_IR_TOK |
+			RTL8169_IR_TER |
+			RTL8169_IR_RDU |
+			RTL8169_IR_LinkChg |
+			RTL8169_IR_FVOW
 		);
 		m_io_bar_region->write16(RTL8169_IO_ISR, 0xFFFF);
 
@@ -214,19 +202,22 @@ namespace Kernel
 		if (!link_up())
 			return BAN::Error::from_errno(EADDRNOTAVAIL);
 
-		auto state = m_lock.lock();
+		const auto interrupt_state = Processor::get_interrupt_state();
+		Processor::set_interrupt_state(InterruptState::Disabled);
 
-		const uint32_t tx_current = m_tx_current;
-		m_tx_current = (m_tx_current + 1) % m_tx_descriptor_count;
+		const uint32_t tx_current_nowrap = m_tx_head.fetch_add(1);
+		const uint32_t tx_current = tx_current_nowrap % m_tx_descriptor_count;
 
 		auto& descriptor = reinterpret_cast<volatile RTL8169Descriptor*>(m_tx_descriptor_region->vaddr())[tx_current];
-		while (descriptor.command & RTL8169_DESC_CMD_OWN)
+		if (descriptor.command & RTL8169_DESC_CMD_OWN)
 		{
-			SpinLockAsMutex smutex(m_lock, state);
-			m_thread_blocker.block_indefinite(&smutex);
+			SpinLockGuard guard(m_tx_lock);
+			while (descriptor.command & RTL8169_DESC_CMD_OWN)
+			{
+				SpinLockGuardAsMutex smutex(guard);
+				m_tx_blocker.block_indefinite(&smutex);
+			}
 		}
-
-		m_lock.unlock(state);
 
 		auto* tx_buffer = reinterpret_cast<uint8_t*>(m_tx_buffer_region->vaddr() + tx_current * s_buffer_size);
 
@@ -245,25 +236,31 @@ namespace Kernel
 
 		// give packet ownership to NIC
 		uint32_t command = packet_size | RTL8169_DESC_CMD_OWN | RTL8169_DESC_CMD_LS | RTL8169_DESC_CMD_FS;
-		if (tx_current >= m_tx_descriptor_count - 1)
+		if (tx_current == m_tx_descriptor_count - 1)
 			command |= RTL8169_DESC_CMD_EOR;
 		descriptor.command = command;
 
-		// notify NIC about new packet
-		m_io_bar_region->write8(RTL8169_IO_TPPoll, RTL8169_TPPoll_NPQ);
+		// ring tx queue doorbell
+		if (tx_current_nowrap == m_tx_commit.load())
+			m_io_bar_region->write8(RTL8169_IO_TPPoll, RTL8169_TPPoll_NPQ);
+		while (tx_current_nowrap != m_tx_commit.load())
+			Processor::pause();
+		m_tx_commit.add_fetch(1);
+
+		Processor::set_interrupt_state(interrupt_state);
 
 		return {};
 	}
 
 	void RTL8169::receive_thread()
 	{
-		SpinLockGuard _(m_lock);
+		SpinLockGuard rx_lock_guard(m_rx_lock);
 
-		while (!m_thread_should_die)
+		while (!m_rx_thread_should_die)
 		{
 			for (;;)
 			{
-				auto& descriptor = reinterpret_cast<volatile RTL8169Descriptor*>(m_rx_descriptor_region->vaddr())[m_rx_current];
+				auto& descriptor = reinterpret_cast<volatile RTL8169Descriptor*>(m_rx_descriptor_region->vaddr())[m_rx_head];
 				if (descriptor.command & RTL8169_DESC_CMD_OWN)
 					break;
 
@@ -277,54 +274,67 @@ namespace Kernel
 					; // descriptor has an error
 				else
 				{
-					m_lock.unlock(InterruptState::Enabled);
+					m_rx_lock.unlock(InterruptState::Enabled);
 
 					NetworkManager::get().on_receive(*this, BAN::ConstByteSpan {
-						reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + m_rx_current * s_buffer_size),
+						reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + m_rx_head * s_buffer_size),
 						packet_length
 					});
 
-					m_lock.lock();
+					m_rx_lock.lock();
 				}
 
-				m_rx_current = (m_rx_current + 1) % m_rx_descriptor_count;
+				uint32_t command = 0x1FF8 | RTL8169_DESC_CMD_OWN;
+				if (m_rx_head == m_rx_descriptor_count - 1)
+					command |= RTL8169_DESC_CMD_EOR;
+				descriptor.command = command;
 
-				descriptor.command = descriptor.command | RTL8169_DESC_CMD_OWN;
+				m_rx_head = (m_rx_head + 1) % m_rx_descriptor_count;
 			}
 
-			SpinLockAsMutex smutex(m_lock, InterruptState::Enabled);
-			m_thread_blocker.block_indefinite(&smutex);
+			SpinLockGuardAsMutex smutex(rx_lock_guard);
+			m_rx_blocker.block_indefinite(&smutex);
 		}
 
-		m_thread_is_dead = true;
+		m_rx_thread_is_dead = true;
 	}
 
 	void RTL8169::handle_irq()
 	{
-		const uint16_t interrupt_status = m_io_bar_region->read16(RTL8169_IO_ISR);
-		m_io_bar_region->write16(RTL8169_IO_ISR, interrupt_status);
-
-		if (interrupt_status & RTL8169_IR_LinkChg)
+		uint16_t isr;
+		while ((isr = m_io_bar_region->read16(RTL8169_IO_ISR)))
 		{
-			m_link_up = m_io_bar_region->read8(RTL8169_IO_PHYSts) & RTL8169_PHYSts_LinkSts;
-			dprintln("link status -> {}", m_link_up.load());
-		}
+			m_io_bar_region->write16(RTL8169_IO_ISR, isr);
 
-		if (interrupt_status & (RTL8169_IR_TOK | RTL8169_IR_ROK))
-		{
-			SpinLockGuard _(m_lock);
-			m_thread_blocker.unblock();
-		}
+			if (isr & RTL8169_IR_LinkChg)
+			{
+				m_link_up = m_io_bar_region->read8(RTL8169_IO_PHYSts) & RTL8169_PHYSts_LinkSts;
+				dprintln("link status {}", link_up() ? "UP" : "DOWN");
+				if (link_up())
+					dprintln("link speed {}", link_speed());
+			}
 
-		if (interrupt_status & RTL8169_IR_RER)
-			dwarnln("Rx error");
-		if (interrupt_status & RTL8169_IR_TER)
-			dwarnln("Tx error");
-		if (interrupt_status & RTL8169_IR_RDU)
-			dwarnln("Rx descriptor not available");
-		if (interrupt_status & RTL8169_IR_FVOW)
-			dwarnln("Rx FIFO overflow");
-		// dont log TDU is sent after each sent packet
+			if (isr & (RTL8169_IR_TER | RTL8169_IR_TOK))
+			{
+				SpinLockGuard _(m_tx_lock);
+				m_tx_blocker.unblock();
+			}
+
+			if (isr & (RTL8169_IR_RER | RTL8169_IR_ROK))
+			{
+				SpinLockGuard _(m_rx_lock);
+				m_rx_blocker.unblock();
+			}
+
+			if (isr & RTL8169_IR_RER)
+				dwarnln("Rx error");
+			if (isr & RTL8169_IR_TER)
+				dwarnln("Tx error");
+			if (isr & RTL8169_IR_RDU)
+				dwarnln("Rx descriptor not available");
+			if (isr & RTL8169_IR_FVOW)
+				dwarnln("Rx FIFO overflow");
+		}
 	}
 
 }

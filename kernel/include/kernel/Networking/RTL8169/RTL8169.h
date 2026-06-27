@@ -64,14 +64,17 @@ namespace Kernel
 		BAN::UniqPtr<DMARegion>	m_rx_descriptor_region;
 		BAN::UniqPtr<DMARegion>	m_tx_descriptor_region;
 
-		SpinLock m_lock;
+		BAN::Atomic<bool> m_rx_thread_should_die { false };
+		BAN::Atomic<bool> m_rx_thread_is_dead { true };
 
-		bool m_thread_should_die { false };
-		BAN::Atomic<bool> m_thread_is_dead { true };
-		ThreadBlocker m_thread_blocker;
+		uint32_t m_rx_head { 0 };
+		SpinLock m_rx_lock;
+		ThreadBlocker m_rx_blocker;
 
-		uint32_t m_rx_current { 0 };
-		size_t m_tx_current { 0 };
+		BAN::Atomic<uint32_t> m_tx_head { 0 };
+		BAN::Atomic<uint32_t> m_tx_commit { 0 };
+		SpinLock m_tx_lock;
+		ThreadBlocker m_tx_blocker;
 
 		BAN::MACAddress	m_mac_address {};
 		BAN::Atomic<bool> m_link_up { false };
