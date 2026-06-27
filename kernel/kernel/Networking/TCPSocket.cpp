@@ -967,6 +967,9 @@ namespace Kernel
 			if (m_last_sent_window_size == 0)
 				m_should_send_zero_window = false;
 
+			if (m_last_sent_window_size == m_recv_window.buffer->free())
+				m_should_send_window_update = false;
+
 			if (m_should_send_zero_window || m_should_send_window_update)
 			{
 				ASSERT(m_connection_info.has_value());
