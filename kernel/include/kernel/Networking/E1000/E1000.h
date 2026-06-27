@@ -74,8 +74,8 @@ namespace Kernel
 		BAN::UniqPtr<DMARegion>	m_rx_descriptor_region;
 		BAN::UniqPtr<DMARegion>	m_tx_descriptor_region;
 
-		BAN::Atomic<uint32_t> m_tx_head1 { 0 };
-		BAN::Atomic<uint32_t> m_tx_head2 { 0 };
+		BAN::Atomic<uint32_t> m_tx_head   { 0 };
+		BAN::Atomic<uint32_t> m_tx_commit { 0 };
 
 		SpinLock m_rx_lock;
 		ThreadBlocker m_rx_blocker;

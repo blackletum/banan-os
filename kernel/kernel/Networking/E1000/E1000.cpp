@@ -281,7 +281,11 @@ namespace Kernel
 
 	BAN::ErrorOr<void> E1000::send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::Span<const BAN::ConstByteSpan> payload)
 	{
-		const uint32_t tx_current = m_tx_head1.fetch_add(1) % E1000_TX_DESCRIPTOR_COUNT;
+		const auto interrupt_state = Processor::get_interrupt_state();
+		Processor::set_interrupt_state(InterruptState::Disabled);
+
+		const uint32_t tx_current_nowrap = m_tx_head.fetch_add(1);
+		const uint32_t tx_current = tx_current_nowrap % E1000_TX_DESCRIPTOR_COUNT;
 
 		auto& descriptor = reinterpret_cast<volatile e1000_tx_desc*>(m_tx_descriptor_region->vaddr())[tx_current];
 		while (descriptor.status == 0)
@@ -306,8 +310,12 @@ namespace Kernel
 		descriptor.status = 0;
 		descriptor.cmd = CMD_EOP | CMD_IFCS | CMD_RS;
 
-		if (tx_current == m_tx_head2.fetch_add(1) % E1000_TX_DESCRIPTOR_COUNT)
-			write32(REG_TDT, (tx_current + 1) % E1000_TX_DESCRIPTOR_COUNT);
+		while (tx_current_nowrap != m_tx_commit.load())
+			Processor::pause();
+		write32(REG_TDT, (tx_current + 1) % E1000_TX_DESCRIPTOR_COUNT);
+		m_tx_commit.add_fetch(1);
+
+		Processor::set_interrupt_state(interrupt_state);
 
 		dprintln_if(DEBUG_E1000, "sent {} bytes", packet_size);
 
