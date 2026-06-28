@@ -46,7 +46,7 @@ namespace Kernel
 		};
 
 	private:
-		Mutex m_buffer_lock;
+		SpinLock m_buffer_lock;
 		BAN::UniqPtr<VirtualRange> m_buffer;
 
 		uint32_t m_buffer_tail { 0 };

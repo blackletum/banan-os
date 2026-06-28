@@ -1,4 +1,4 @@
-#include <kernel/Lock/LockGuard.h>
+#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Networking/Loopback.h>
 #include <kernel/Networking/NetworkManager.h>
 
@@ -56,10 +56,13 @@ namespace Kernel
 
 	BAN::ErrorOr<void> LoopbackInterface::send_raw_bytes(BAN::Span<const BAN::ConstByteSpan> buffers)
 	{
+		const auto interrupt_state = Processor::get_interrupt_state();
+		Processor::set_interrupt_state(InterruptState::Disabled);
+
 		auto& descriptor =
 			[&]() -> Descriptor&
 			{
-				LockGuard _(m_buffer_lock);
+				SpinLockGuard guard(m_buffer_lock);
 				for (;;)
 				{
 					auto& descriptor = m_descriptors[m_buffer_head];
@@ -69,7 +72,8 @@ namespace Kernel
 						descriptor.state = 1;
 						return descriptor;
 					}
-					m_thread_blocker.block_indefinite(&m_buffer_lock);
+					SpinLockGuardAsMutex smutex(guard);
+					m_thread_blocker.block_indefinite(&smutex);
 				}
 			}();
 
@@ -81,17 +85,18 @@ namespace Kernel
 			packet_size += buffer.size();
 		}
 
-		LockGuard _(m_buffer_lock);
+		m_buffer_lock.lock();
 		descriptor.size = packet_size;
 		descriptor.state = 2;
 		m_thread_blocker.unblock();
+		m_buffer_lock.unlock(interrupt_state);
 
 		return {};
 	}
 
 	void LoopbackInterface::receive_thread()
 	{
-		LockGuard _(m_buffer_lock);
+		SpinLockGuard guard(m_buffer_lock);
 
 		while (!m_thread_should_die)
 		{
@@ -102,7 +107,7 @@ namespace Kernel
 					break;
 				m_buffer_tail = (m_buffer_tail + 1) % buffer_count;
 
-				m_buffer_lock.unlock();
+				m_buffer_lock.unlock(InterruptState::Enabled);
 
 				NetworkManager::get().on_receive(*this, {
 					descriptor.addr,
@@ -116,7 +121,8 @@ namespace Kernel
 				m_thread_blocker.unblock();
 			}
 
-			m_thread_blocker.block_indefinite(&m_buffer_lock);
+			SpinLockGuardAsMutex smutex(guard);
+			m_thread_blocker.block_indefinite(&smutex);
 		}
 
 		m_thread_is_dead = true;
