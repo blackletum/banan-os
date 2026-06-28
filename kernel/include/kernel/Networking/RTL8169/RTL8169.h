@@ -20,7 +20,7 @@ namespace Kernel
 		virtual bool link_up() override { return m_link_up; }
 		virtual int link_speed() override;
 
-		virtual size_t payload_mtu() const override { return 7436 - sizeof(EthernetHeader); }
+		virtual size_t payload_mtu() const override { return 0x1FF8 - sizeof(EthernetHeader); }
 
 		virtual void handle_irq() override;
 
@@ -33,7 +33,7 @@ namespace Kernel
 
 		BAN::ErrorOr<void> initialize();
 
-		virtual BAN::ErrorOr<void> send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::Span<const BAN::ConstByteSpan>) override;
+		virtual BAN::ErrorOr<void> send_raw_bytes(BAN::Span<const BAN::ConstByteSpan> buffers) override;
 
 		virtual bool can_read_impl() const override { return false; }
 		virtual bool can_write_impl() const override { return false; }

@@ -12,8 +12,8 @@ namespace Kernel
 		Reply = 2,
 	};
 
-	static constexpr BAN::IPv4Address	s_broadcast_ipv4 { 0xFFFFFFFF };
-	static constexpr BAN::MACAddress	s_broadcast_mac {{ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF }};
+	static constexpr BAN::IPv4Address s_broadcast_ipv4 { 0xFFFFFFFF };
+	static constexpr BAN::MACAddress  s_broadcast_mac  {{ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF }};
 
 	BAN::ErrorOr<BAN::UniqPtr<ARPTable>> ARPTable::create()
 	{
@@ -50,18 +50,19 @@ namespace Kernel
 				return it->value;
 		}
 
-		ARPPacket arp_request;
-		arp_request.htype = 0x0001;
-		arp_request.ptype = EtherType::IPv4;
-		arp_request.hlen = 0x06;
-		arp_request.plen = 0x04;
-		arp_request.oper = ARPOperation::Request;
-		arp_request.sha = interface.get_mac_address();
-		arp_request.spa = interface.get_ipv4_address();
-		arp_request.tha = {{ 0, 0, 0, 0, 0, 0 }};
-		arp_request.tpa = ipv4_address;
+		const auto arp_request = ARPPacket {
+			.htype = 0x0001,
+			.ptype = EtherType::IPv4,
+			.hlen = 0x06,
+			.plen = 0x04,
+			.oper = ARPOperation::Request,
+			.sha = interface.get_mac_address(),
+			.spa = interface.get_ipv4_address(),
+			.tha = {{ 0, 0, 0, 0, 0, 0 }},
+			.tpa = ipv4_address,
+		};
 
-		TRY(interface.send_bytes(s_broadcast_mac, EtherType::ARP, BAN::ConstByteSpan::from(arp_request)));
+		TRY(interface.send_with_ethernet_header(s_broadcast_mac, EtherType::ARP, BAN::ConstByteSpan::from(arp_request)));
 
 		uint64_t timeout = SystemTimer::get().ms_since_boot() + 1'000;
 		while (SystemTimer::get().ms_since_boot() < timeout)
@@ -100,7 +101,7 @@ namespace Kernel
 			{
 				if (packet.tpa == interface.get_ipv4_address())
 				{
-					const ARPPacket arp_reply {
+					const auto arp_reply = ARPPacket {
 						.htype = 0x0001,
 						.ptype = EtherType::IPv4,
 						.hlen = 0x06,
@@ -111,7 +112,7 @@ namespace Kernel
 						.tha = packet.sha,
 						.tpa = packet.spa,
 					};
-					TRY(interface.send_bytes(packet.sha, EtherType::ARP, BAN::ConstByteSpan::from(arp_reply)));
+					TRY(interface.send_with_ethernet_header(packet.sha, EtherType::ARP, BAN::ConstByteSpan::from(arp_reply)));
 				}
 				break;
 			}

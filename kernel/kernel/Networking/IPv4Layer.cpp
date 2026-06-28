@@ -180,7 +180,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<size_t> IPv4Layer::sendto(NetworkSocket& socket, BAN::ConstByteSpan payload, const sockaddr* address, socklen_t address_len)
+	BAN::ErrorOr<void> IPv4Layer::sendto(NetworkSocket& socket, BAN::ConstByteSpan payload, const sockaddr* address, socklen_t address_len)
 	{
 		if (address->sa_family != AF_INET)
 			return BAN::Error::from_errno(EINVAL);
@@ -224,20 +224,18 @@ namespace Kernel
 		};
 
 		uint8_t protocol_header_buffer[32];
-		ASSERT(socket.protocol_header_size() < sizeof(protocol_header_buffer));
-
 		auto protocol_header = BAN::ByteSpan::from(protocol_header_buffer).slice(0, socket.protocol_header_size());
 		socket.get_protocol_header(protocol_header, payload, dst_port, pseudo_header);
 
-		BAN::ConstByteSpan buffers[] {
+		const BAN::ConstByteSpan buffers[] {
 			BAN::ConstByteSpan::from(ipv4_header),
 			protocol_header,
 			payload,
 		};
 
-		TRY(interface->send_bytes(dst_mac, EtherType::IPv4, { buffers, sizeof(buffers) / sizeof(*buffers) }));
+		TRY(interface->send_with_ethernet_header(dst_mac, EtherType::IPv4, buffers));
 
-		return payload.size();
+		return {};
 	}
 
 	BAN::ErrorOr<void> IPv4Layer::handle_ipv4_packet(NetworkInterface& interface, BAN::ConstByteSpan packet)
@@ -284,34 +282,33 @@ namespace Kernel
 				{
 					case ICMPType::EchoRequest:
 					{
-						auto dst_mac = TRY(m_arp_table->get_mac_from_ipv4(interface, src_ipv4));
+						const auto dst_mac = TRY(m_arp_table->get_mac_from_ipv4(interface, src_ipv4));
 
-						auto send_ipv4_header = get_ipv4_header(
+						const auto send_ipv4_header = get_ipv4_header(
 							ipv4_data.size(),
 							interface.get_ipv4_address(),
 							src_ipv4,
 							NetworkProtocol::ICMP
 						);
 
-						ICMPHeader send_icmp_header {
+						auto send_icmp_header = ICMPHeader {
 							.type = ICMPType::EchoReply,
 							.code = icmp_header.code,
 							.checksum = 0,
 							.rest = icmp_header.rest,
 						};
 
-						auto send_payload = ipv4_data.slice(sizeof(ICMPHeader));
-
 						const BAN::ConstByteSpan send_buffers[] {
 							BAN::ConstByteSpan::from(send_ipv4_header),
 							BAN::ConstByteSpan::from(send_icmp_header),
-							send_payload
+							ipv4_data.slice(sizeof(ICMPHeader))
 						};
-						auto send_buffers_span = BAN::Span { send_buffers, sizeof(send_buffers) / sizeof(*send_buffers) };
 
-						send_icmp_header.checksum = calculate_internet_checksum(send_buffers_span.slice(1));
+						send_icmp_header.checksum = calculate_internet_checksum({
+							send_buffers + 1, sizeof(send_buffers) / sizeof(*send_buffers) - 1
+						});
 
-						TRY(interface.send_bytes(dst_mac, EtherType::IPv4, send_buffers_span));
+						TRY(interface.send_with_ethernet_header(dst_mac, EtherType::IPv4, send_buffers));
 
 						break;
 					}

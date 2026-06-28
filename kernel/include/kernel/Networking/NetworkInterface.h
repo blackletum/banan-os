@@ -59,11 +59,30 @@ namespace Kernel
 
 		virtual BAN::StringView name() const override { return m_name; }
 
-		BAN::ErrorOr<void> send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::ConstByteSpan payload)
+		BAN::ErrorOr<void> send_with_ethernet_header(BAN::MACAddress dst_mac, EtherType ether_type, BAN::ConstByteSpan buffer)
 		{
-			return send_bytes(destination, protocol, { &payload, 1 });
+			BAN::ConstByteSpan buffer_array[1] { buffer };
+			return send_with_ethernet_header(dst_mac, ether_type, buffer_array);
 		}
-		virtual BAN::ErrorOr<void> send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::Span<const BAN::ConstByteSpan> payload) = 0;
+
+		template<size_t SIZE>
+		BAN::ErrorOr<void> send_with_ethernet_header(BAN::MACAddress dst_mac, EtherType ether_type, const BAN::ConstByteSpan (&buffer_array)[SIZE])
+		{
+			const auto ethernet_header = EthernetHeader {
+				.dst_mac = dst_mac,
+				.src_mac = get_mac_address(),
+				.ether_type = ether_type,
+			};
+
+			BAN::ConstByteSpan new_buffer_array[SIZE + 1];
+			new_buffer_array[0] = BAN::ConstByteSpan::from(ethernet_header);
+			for (size_t i = 0; i < SIZE; i++)
+				new_buffer_array[i + 1] = buffer_array[i];
+
+			return send_raw_bytes({ new_buffer_array, SIZE + 1 });
+		}
+
+		virtual BAN::ErrorOr<void> send_raw_bytes(BAN::Span<const BAN::ConstByteSpan> buffers) = 0;
 
 	private:
 		BAN::ErrorOr<long> ioctl_impl(int, void*) override;

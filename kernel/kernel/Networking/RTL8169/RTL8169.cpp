@@ -197,7 +197,7 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<void> RTL8169::send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::Span<const BAN::ConstByteSpan> payload)
+	BAN::ErrorOr<void> RTL8169::send_raw_bytes(BAN::Span<const BAN::ConstByteSpan> buffers)
 	{
 		if (!link_up())
 			return BAN::Error::from_errno(EADDRNOTAVAIL);
@@ -222,14 +222,10 @@ namespace Kernel
 		auto* tx_buffer = reinterpret_cast<uint8_t*>(m_tx_buffer_region->vaddr() + tx_current * s_buffer_size);
 
 		// write packet
-		auto& ethernet_header = *reinterpret_cast<EthernetHeader*>(tx_buffer);
-		ethernet_header.dst_mac = destination;
-		ethernet_header.src_mac = get_mac_address();
-		ethernet_header.ether_type = protocol;
-
-		size_t packet_size = sizeof(EthernetHeader);
-		for (const auto& buffer : payload)
+		size_t packet_size = 0;
+		for (const auto& buffer : buffers)
 		{
+			ASSERT(packet_size + buffer.size() <= s_buffer_size);
 			memcpy(tx_buffer + packet_size, buffer.data(), buffer.size());
 			packet_size += buffer.size();
 		}

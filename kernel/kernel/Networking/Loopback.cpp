@@ -54,7 +54,7 @@ namespace Kernel
 			Processor::yield();
 	}
 
-	BAN::ErrorOr<void> LoopbackInterface::send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::Span<const BAN::ConstByteSpan> payload)
+	BAN::ErrorOr<void> LoopbackInterface::send_raw_bytes(BAN::Span<const BAN::ConstByteSpan> buffers)
 	{
 		auto& descriptor =
 			[&]() -> Descriptor&
@@ -73,13 +73,8 @@ namespace Kernel
 				}
 			}();
 
-		auto& ethernet_header = *reinterpret_cast<EthernetHeader*>(descriptor.addr);
-		ethernet_header.dst_mac = destination;
-		ethernet_header.src_mac = get_mac_address();
-		ethernet_header.ether_type = protocol;
-
-		size_t packet_size = sizeof(EthernetHeader);
-		for (const auto& buffer : payload)
+		size_t packet_size = 0;
+		for (const auto& buffer : buffers)
 		{
 			ASSERT(packet_size + buffer.size() <= buffer_size);
 			memcpy(descriptor.addr + packet_size, buffer.data(), buffer.size());

@@ -45,7 +45,7 @@ namespace Kernel
 		uint32_t read32(uint16_t reg);
 		void write32(uint16_t reg, uint32_t value);
 
-		BAN::ErrorOr<void> send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::Span<const BAN::ConstByteSpan> payload) override;
+		BAN::ErrorOr<void> send_raw_bytes(BAN::Span<const BAN::ConstByteSpan> buffers) override;
 
 		bool can_read_impl() const override { return false; }
 		bool can_write_impl() const override { return false; }

@@ -224,7 +224,9 @@ namespace Kernel
 			address_len = message.msg_namelen;
 		}
 
-		return TRY(m_network_layer.sendto(*this, buffer.span(), address, address_len));
+		TRY(m_network_layer.sendto(*this, buffer.span(), address, address_len));
+
+		return buffer.size();
 	}
 
 	BAN::ErrorOr<void> UDPSocket::getsockopt_impl(int level, int option, void* value, socklen_t* value_len)
