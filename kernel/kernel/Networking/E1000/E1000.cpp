@@ -202,6 +202,8 @@ namespace Kernel
 		rctrl |= RCTL_BSIZE_8192;
 		write32(REG_RCTL, rctrl);
 
+		write32(REG_RXCSUM, RXSUM_IPOFLD | RXSUM_TUOFLD);
+
 		return {};
 	}
 
@@ -330,20 +332,44 @@ namespace Kernel
 			for (;;)
 			{
 				auto& descriptor = reinterpret_cast<volatile e1000_rx_desc*>(m_rx_descriptor_region->vaddr())[rx_current];
-				if (!(descriptor.status & 1))
+
+				const auto status = descriptor.status;
+				if (!(status & RX_STS_DD))
 					break;
-				ASSERT(descriptor.length <= E1000_RX_BUFFER_SIZE);
 
-				dprintln_if(DEBUG_E1000, "got {} bytes", (uint16_t)descriptor.length);
+				const auto errors = descriptor.errors;
+				if (!(status & RX_STS_EOP))
+					dwarnln("multi descriptor packet??");
+				else if (errors & (RX_ERR_CE | RX_ERR_SE | RX_ERR_RXE))
+					dwarnln("descriptor error {2h}", errors);
+				else if ((status & RX_STS_IPCS) && (errors & RX_ERR_IPE))
+					dwarnln("IPv4 checksum error");
+				else if ((status & RX_STS_TCPCS) && (errors & RX_ERR_TCPE))
+					dwarnln("TCP checkum error");
+				else if ((status & RX_STS_UDPCS) && (errors & RX_ERR_TCPE))
+					dwarnln("UDP checksum error");
+				else
+				{
+					m_rx_lock.unlock(InterruptState::Enabled);
 
-				m_rx_lock.unlock(InterruptState::Enabled);
+					const uint32_t packet_length = descriptor.length;
+					ASSERT(packet_length <= E1000_RX_BUFFER_SIZE);
 
-				NetworkManager::get().on_receive(*this, BAN::ConstByteSpan {
-					reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + rx_current * E1000_RX_BUFFER_SIZE),
-					descriptor.length
-				}, 0);
+					dprintln_if(DEBUG_E1000, "got {} bytes", packet_length);
 
-				m_rx_lock.lock();
+					uint32_t validated_cksums = 0;
+					if ((status & RX_STS_IPCS) && !(errors & RX_ERR_IPE))
+						validated_cksums |= CKSUM_IPV4;
+					if ((status & RX_STS_TCPCS) && !(errors & RX_ERR_TCPE))
+						validated_cksums |= CKSUM_TCP;
+					if ((status & RX_STS_UDPCS) && !(errors & RX_ERR_TCPE))
+						validated_cksums |= CKSUM_UDP;
+
+					const uint8_t* packet_data = reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + rx_current * E1000_RX_BUFFER_SIZE);
+					NetworkManager::get().on_receive(*this, BAN::ConstByteSpan { packet_data, packet_length }, validated_cksums);
+
+					m_rx_lock.lock();
+				}
 
 				descriptor.status = 0;
 

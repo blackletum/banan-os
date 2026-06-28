@@ -29,6 +29,7 @@ namespace Kernel
 		REG_TDLEN	= 0x3808,
 		REG_TDH		= 0x3810,
 		REG_TDT		= 0x3818,
+		REG_RXCSUM	= 0x5000,
 		REG_MTA		= 0x5200,
 	};
 
@@ -167,6 +168,15 @@ namespace Kernel
 		RCTL_BSIZE_16384	= (0b01 << 16) | RCTL_BSEX,
 	};
 
+	enum E1000_RXCSUM : uint32_t
+	{
+		RXSUM_IPOFLD  = 1 << 8,
+		RXSUM_TUOFLD  = 1 << 9,
+		RXSUM_CRCOFLD = 1 << 11,
+		RXSUM_IPPCE   = 1 << 12,
+		RXSUM_PCSD    = 1 << 13,
+	};
+
 	enum E1000_CMD : uint8_t
 	{
 		CMD_EOP		= 1 << 0,
@@ -176,6 +186,26 @@ namespace Kernel
 		CMD_DEXT	= 1 << 5,
 		CMD_VLE		= 1 << 6,
 		CMD_IDE		= 1 << 7,
+	};
+
+	enum E1000_RX_STS : uint8_t
+	{
+		RX_STS_IPCS  = 1 << 6,
+		RX_STS_TCPCS = 1 << 5,
+		RX_STS_UDPCS = 1 << 5,
+		RX_STS_EOP   = 1 << 1,
+		RX_STS_DD    = 1 << 0,
+	};
+
+	enum E1000_RX_ERR : uint8_t
+	{
+		RX_ERR_RXE  = 1 << 7,
+		RX_ERR_IPE  = 1 << 6,
+		RX_ERR_TCPE = 1 << 5,
+		RX_ERR_CXE  = 1 << 4,
+		RX_ERR_SEQ  = 1 << 2,
+		RX_ERR_SE   = 1 << 1,
+		RX_ERR_CE   = 1 << 0,
 	};
 
 	struct e1000_rx_desc
