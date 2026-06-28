@@ -132,6 +132,10 @@ namespace Kernel
 		// configure max rx packet size
 		m_io_bar_region->write16(RTL8169_IO_RMS, RTL8169_RMS_MAX);
 
+		// enable ip/tcp/udp checksum offloading
+		// TODO: is this supported on all cards?
+		m_io_bar_region->write16(RTL8169_IO_CPlusCR, 1 << 5);
+
 		return {};
 	}
 
@@ -257,31 +261,49 @@ namespace Kernel
 			for (;;)
 			{
 				auto& descriptor = reinterpret_cast<volatile RTL8169Descriptor*>(m_rx_descriptor_region->vaddr())[m_rx_head];
+
+				const auto command = descriptor.command;
 				if (descriptor.command & RTL8169_DESC_CMD_OWN)
 					break;
 
 				// packet buffer can only hold single packet, so we should not receive any multi-descriptor packets
-				ASSERT((descriptor.command & RTL8169_DESC_CMD_LS) && (descriptor.command & RTL8169_DESC_CMD_FS));
+				ASSERT((command & RTL8169_DESC_CMD_LS) && (command & RTL8169_DESC_CMD_FS));
 
-				const uint16_t packet_length = descriptor.command & 0x3FFF;
+				const uint8_t protocol = (command >> 17) & 3;
+				const uint16_t packet_length = command & 0x3FFF;
 				if (packet_length > s_buffer_size)
 					dwarnln("Got {} bytes to {} byte buffer", packet_length, s_buffer_size);
-				else if (descriptor.command & (1u << 21))
-					; // descriptor has an error
+				else if (command & (1u << 21))
+					dwarnln("descriptor error {4h}", command);
+				else if (protocol == 1 && (command & (1u << 14)))
+					dwarnln("TCP checksum error");
+				else if (protocol == 2 && (command & (1u << 15)))
+					dwarnln("UDP checksum error");
+				else if (protocol != 0 && (command & (1u << 16)))
+					dwarnln("IPv4 checksum error");
 				else
 				{
 					m_rx_lock.unlock(InterruptState::Enabled);
 
+					uint32_t validated_cksums;
+					switch (protocol)
+					{
+						case 0: validated_cksums = 0;                      break;
+						case 1: validated_cksums = CKSUM_IPV4 | CKSUM_TCP; break;
+						case 2: validated_cksums = CKSUM_IPV4 | CKSUM_UDP; break;
+						case 3: validated_cksums = CKSUM_IPV4;             break;
+					}
+
 					const uint8_t* packet_data = reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + m_rx_head * s_buffer_size);
-					NetworkManager::get().on_receive(*this, BAN::ConstByteSpan { packet_data, packet_length }, 0);
+					NetworkManager::get().on_receive(*this, BAN::ConstByteSpan { packet_data, packet_length }, validated_cksums);
 
 					m_rx_lock.lock();
 				}
 
-				uint32_t command = 0x1FF8 | RTL8169_DESC_CMD_OWN;
+				uint32_t new_command = 0x1FF8 | RTL8169_DESC_CMD_OWN;
 				if (m_rx_head == m_rx_descriptor_count - 1)
-					command |= RTL8169_DESC_CMD_EOR;
-				descriptor.command = command;
+					new_command |= RTL8169_DESC_CMD_EOR;
+				descriptor.command = new_command;
 
 				m_rx_head = (m_rx_head + 1) % m_rx_descriptor_count;
 			}
