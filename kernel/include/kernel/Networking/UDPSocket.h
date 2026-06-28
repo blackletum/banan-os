@@ -31,7 +31,7 @@ namespace Kernel
 		void get_protocol_header(BAN::ByteSpan header, BAN::ConstByteSpan payload, uint16_t dst_port, PseudoHeader) override;
 
 	protected:
-		void receive_packet(BAN::ConstByteSpan, const sockaddr* sender, socklen_t sender_len) override;
+		void receive_packet(BAN::ConstByteSpan, const sockaddr* sender, socklen_t sender_len, uint32_t validated_cksums) override;
 
 		BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t) override;
 		BAN::ErrorOr<void> bind_impl(const sockaddr* address, socklen_t address_len) override;

@@ -23,6 +23,13 @@ namespace Kernel
 		ARP = 0x0806,
 	};
 
+	enum NetworkChecksum : uint32_t
+	{
+		CKSUM_IPV4 = 1 << 0,
+		CKSUM_TCP  = 1 << 1,
+		CKSUM_UDP  = 1 << 2,
+	};
+
 	class NetworkInterface : public CharacterDevice
 	{
 		BAN_NON_COPYABLE(NetworkInterface);

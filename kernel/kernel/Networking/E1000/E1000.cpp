@@ -341,7 +341,7 @@ namespace Kernel
 				NetworkManager::get().on_receive(*this, BAN::ConstByteSpan {
 					reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + rx_current * E1000_RX_BUFFER_SIZE),
 					descriptor.length
-				});
+				}, 0);
 
 				m_rx_lock.lock();
 

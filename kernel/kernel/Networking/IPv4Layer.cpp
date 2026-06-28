@@ -238,7 +238,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> IPv4Layer::handle_ipv4_packet(NetworkInterface& interface, BAN::ConstByteSpan packet)
+	BAN::ErrorOr<void> IPv4Layer::handle_ipv4_packet(NetworkInterface& interface, BAN::ConstByteSpan packet, uint32_t validated_cksums)
 	{
 		if (packet.size() < sizeof(IPv4Header))
 		{
@@ -247,7 +247,7 @@ namespace Kernel
 		}
 
 		auto& ipv4_header = packet.as<const IPv4Header>();
-		if (calculate_internet_checksum(BAN::ConstByteSpan::from(ipv4_header)) != 0)
+		if (!(validated_cksums & CKSUM_IPV4) && calculate_internet_checksum(BAN::ConstByteSpan::from(ipv4_header)) != 0)
 		{
 			dwarnln_if(DEBUG_IPV4, "IPv4 packet checksum failed");
 			return {};
@@ -386,7 +386,7 @@ namespace Kernel
 		sender.sin_family = AF_INET;
 		sender.sin_port = BAN::host_to_network_endian(src_port);
 		sender.sin_addr.s_addr = src_ipv4.raw;
-		bound_socket->receive_packet(ipv4_data, reinterpret_cast<const sockaddr*>(&sender), sizeof(sender));
+		bound_socket->receive_packet(ipv4_data, reinterpret_cast<const sockaddr*>(&sender), sizeof(sender), validated_cksums);
 
 		return {};
 	}

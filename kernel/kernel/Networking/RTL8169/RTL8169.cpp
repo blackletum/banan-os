@@ -272,10 +272,8 @@ namespace Kernel
 				{
 					m_rx_lock.unlock(InterruptState::Enabled);
 
-					NetworkManager::get().on_receive(*this, BAN::ConstByteSpan {
-						reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + m_rx_head * s_buffer_size),
-						packet_length
-					});
+					const uint8_t* packet_data = reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + m_rx_head * s_buffer_size);
+					NetworkManager::get().on_receive(*this, BAN::ConstByteSpan { packet_data, packet_length }, 0);
 
 					m_rx_lock.lock();
 				}

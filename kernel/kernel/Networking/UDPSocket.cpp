@@ -57,21 +57,69 @@ namespace Kernel
 			header.checksum = 0xFFFF;
 	}
 
-	void UDPSocket::receive_packet(BAN::ConstByteSpan packet, const sockaddr* sender, socklen_t sender_len)
+	void UDPSocket::receive_packet(BAN::ConstByteSpan packet, const sockaddr* sender, socklen_t sender_len, uint32_t validated_cksums)
 	{
-		auto payload = packet.slice(sizeof(UDPHeader));
+		const auto header = packet.as<const UDPHeader>();
+
+		if (!(validated_cksums & CKSUM_UDP) && header.checksum)
+		{
+			uint16_t checksum = 0;
+
+			if (sender->sa_family == AF_INET)
+			{
+				auto interface_or_error = interface(sender, sender_len);
+				if (interface_or_error.is_error())
+					return;
+				auto interface = interface_or_error.release_value();
+
+				auto& addr_in = *reinterpret_cast<const sockaddr_in*>(sender);
+				const PseudoHeader pseudo_header {
+					.src_ipv4 = BAN::IPv4Address(addr_in.sin_addr.s_addr),
+					.dst_ipv4 = interface->get_ipv4_address(),
+					.protocol = NetworkProtocol::UDP,
+					.length = packet.size(),
+				};
+				const UDPHeader udp_header {
+					.src_port = header.src_port,
+					.dst_port = header.dst_port,
+					.length   = header.length,
+					.checksum = 0,
+				};
+				const BAN::ConstByteSpan buffers[] {
+					BAN::ConstByteSpan::from(pseudo_header),
+					BAN::ConstByteSpan::from(udp_header),
+					packet.slice(sizeof(UDPHeader))
+				};
+				checksum = calculate_internet_checksum({ buffers, sizeof(buffers) / sizeof(*buffers) });
+			}
+			else
+			{
+				dwarnln("no UDP checksum validation for socket family {}", sender->sa_family);
+				return;
+			}
+
+			const bool checksum_valid1 = (header.checksum == checksum);
+			const bool checksum_valid2 = (header.checksum == 0xFFFF && checksum == 0);
+			if (!checksum_valid1 && !checksum_valid2)
+			{
+				dwarnln("checksum does not match {4h}", checksum);
+				return;
+			}
+		}
 
 		SpinLockGuard _(m_packet_lock);
 
 		if (m_packets.full())
 		{
-			dprintln("Packet buffer full, dropping packet");
+			dwarnln("Packet buffer full, dropping packet");
 			return;
 		}
 
+		const auto payload = packet.slice(sizeof(UDPHeader));
+
 		if (m_packet_total_size + payload.size() > m_packet_buffer->size())
 		{
-			dprintln("Packet buffer full, dropping packet");
+			dwarnln("Packet buffer full, dropping packet");
 			return;
 		}
 

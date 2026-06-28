@@ -109,10 +109,7 @@ namespace Kernel
 
 				m_buffer_lock.unlock(InterruptState::Enabled);
 
-				NetworkManager::get().on_receive(*this, {
-					descriptor.addr,
-					descriptor.size,
-				});
+				NetworkManager::get().on_receive(*this, BAN::ConstByteSpan { descriptor.addr, descriptor.size }, 0);
 
 				m_buffer_lock.lock();
 

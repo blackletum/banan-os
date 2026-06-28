@@ -41,7 +41,7 @@ namespace Kernel
 
 		ARPTable& arp_table() { return *m_arp_table; }
 
-		BAN::ErrorOr<void> handle_ipv4_packet(NetworkInterface&, BAN::ConstByteSpan);
+		BAN::ErrorOr<void> handle_ipv4_packet(NetworkInterface&, BAN::ConstByteSpan, uint32_t validated_cksums);
 
 		virtual void unbind_socket(uint16_t port) override;
 		virtual BAN::ErrorOr<void> bind_socket_with_target(BAN::RefPtr<NetworkSocket>, const sockaddr* target_address, socklen_t target_address_len) override;

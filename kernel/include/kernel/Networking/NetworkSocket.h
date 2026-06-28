@@ -35,7 +35,7 @@ namespace Kernel
 		virtual void get_protocol_header(BAN::ByteSpan header, BAN::ConstByteSpan payload, uint16_t dst_port, PseudoHeader) = 0;
 		virtual NetworkProtocol protocol() const = 0;
 
-		virtual void receive_packet(BAN::ConstByteSpan, const sockaddr* sender, socklen_t sender_len) = 0;
+		virtual void receive_packet(BAN::ConstByteSpan, const sockaddr* sender, socklen_t sender_len, uint32_t validated_cksums) = 0;
 
 		bool is_bound() const { return m_address_len >= static_cast<socklen_t>(sizeof(sa_family_t)) && m_address.ss_family != AF_UNSPEC; }
 		in_port_t bound_port() const

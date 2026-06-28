@@ -148,7 +148,7 @@ namespace Kernel
 		return {};
 	}
 
-	void NetworkManager::on_receive(NetworkInterface& interface, BAN::ConstByteSpan packet)
+	void NetworkManager::on_receive(NetworkInterface& interface, BAN::ConstByteSpan packet, uint32_t validated_cksums)
 	{
 		if (packet.size() < sizeof(EthernetHeader))
 			return;
@@ -163,7 +163,7 @@ namespace Kernel
 					dwarnln("ARP: {}", ret.error());
 				break;
 			case EtherType::IPv4:
-				if (auto ret = m_ipv4_layer->handle_ipv4_packet(interface, packet_data); ret.is_error())
+				if (auto ret = m_ipv4_layer->handle_ipv4_packet(interface, packet_data, validated_cksums); ret.is_error())
 					dwarnln("IPv4; {}", ret.error());
 				break;
 			default:

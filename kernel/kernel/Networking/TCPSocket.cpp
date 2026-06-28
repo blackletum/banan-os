@@ -572,7 +572,7 @@ namespace Kernel
 		dprintln_if(DEBUG_TCP, "  seq {}", (uint32_t)header.seq_number);
 	}
 
-	void TCPSocket::receive_packet(BAN::ConstByteSpan buffer, const sockaddr* sender, socklen_t sender_len)
+	void TCPSocket::receive_packet(BAN::ConstByteSpan packet, const sockaddr* sender, socklen_t sender_len, uint32_t validated_cksums)
 	{
 		if (m_state == State::Listen)
 		{
@@ -585,9 +585,10 @@ namespace Kernel
 				}();
 
 			if (socket)
-				return socket->receive_packet(buffer, sender, sender_len);
+				return socket->receive_packet(packet, sender, sender_len, validated_cksums);
 		}
 
+		if (!(validated_cksums & CKSUM_TCP))
 		{
 			uint16_t checksum = 0;
 
@@ -603,23 +604,23 @@ namespace Kernel
 					.src_ipv4 = BAN::IPv4Address(addr_in.sin_addr.s_addr),
 					.dst_ipv4 = interface->get_ipv4_address(),
 					.protocol = NetworkProtocol::TCP,
-					.length = buffer.size(),
+					.length = packet.size(),
 				};
 				const BAN::ConstByteSpan buffers[] {
 					BAN::ConstByteSpan::from(pseudo_header),
-					buffer
+					packet
 				};
 				checksum = calculate_internet_checksum({ buffers, sizeof(buffers) / sizeof(*buffers) });
 			}
 			else
 			{
-				dwarnln("No tcp checksum validation for socket family {}", sender->sa_family);
+				dwarnln("no TCP checksum validation for socket family {}", sender->sa_family);
 				return;
 			}
 
 			if (checksum != 0)
 			{
-				dprintln("Checksum does not match");
+				dwarnln("checksum does not match");
 				return;
 			}
 		}
@@ -628,7 +629,7 @@ namespace Kernel
 
 		const bool hungup_before = has_hungup_impl();
 
-		auto& header = buffer.as<const TCPHeader>();
+		const auto& header = packet.as<const TCPHeader>();
 
 		dprintln_if(DEBUG_TCP, "receiving {} {8b}", (uint8_t)m_state, header.flags);
 		dprintln_if(DEBUG_TCP, "  ack {}", (uint32_t)header.ack_number);
@@ -768,7 +769,7 @@ namespace Kernel
 			if (header.ack_number > m_send_window.current_ack)
 				m_send_window.current_ack = header.ack_number;
 
-			auto payload = buffer.slice(header.data_offset * sizeof(uint32_t));
+			auto payload = packet.slice(header.data_offset * sizeof(uint32_t));
 
 			if (header.seq_number < expected_seq)
 			{

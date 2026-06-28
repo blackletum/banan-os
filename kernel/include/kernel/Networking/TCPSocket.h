@@ -68,7 +68,7 @@ namespace Kernel
 
 		BAN::ErrorOr<long> ioctl_impl(int, void*) override;
 
-		void receive_packet(BAN::ConstByteSpan, const sockaddr* sender, socklen_t sender_len) override;
+		void receive_packet(BAN::ConstByteSpan, const sockaddr* sender, socklen_t sender_len, uint32_t validated_cksums) override;
 
 		bool can_read_impl() const override;
 		bool can_write_impl() const override;
