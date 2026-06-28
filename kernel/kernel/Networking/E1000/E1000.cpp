@@ -319,14 +319,16 @@ namespace Kernel
 
 	void E1000::receive_thread()
 	{
-		SpinLockGuard _(m_rx_lock);
+		SpinLockGuard guard(m_rx_lock);
+
+		uint32_t rx_current = 0;
 
 		while (!m_thread_should_die)
 		{
+			uint32_t rx_tail = rx_current;
+
 			for (;;)
 			{
-				const uint32_t rx_current = (read32(REG_RDT0) + 1) % E1000_RX_DESCRIPTOR_COUNT;
-
 				auto& descriptor = reinterpret_cast<volatile e1000_rx_desc*>(m_rx_descriptor_region->vaddr())[rx_current];
 				if (!(descriptor.status & 1))
 					break;
@@ -344,10 +346,15 @@ namespace Kernel
 				m_rx_lock.lock();
 
 				descriptor.status = 0;
-				write32(REG_RDT0, rx_current);
+
+				rx_tail = rx_current;
+				rx_current = (rx_current + 1) % E1000_RX_DESCRIPTOR_COUNT;
 			}
 
-			SpinLockAsMutex smutex(m_rx_lock, InterruptState::Enabled);
+			if (rx_current != rx_tail)
+				write32(REG_RDT0, rx_tail);
+
+			SpinLockGuardAsMutex smutex(guard);
 			m_rx_blocker.block_indefinite(&smutex);
 		}
 
