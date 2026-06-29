@@ -490,20 +490,6 @@ void pthread_exit(void* value_ptr)
 	ASSERT_NOT_REACHED();
 }
 
-#undef pthread_equal
-int pthread_equal(pthread_t t1, pthread_t t2)
-{
-	return _pthread_equal(t1, t2);
-}
-#define pthread_equal(t1, t2) _pthread_equal(t1, t2)
-
-#undef pthread_self
-pthread_t pthread_self(void)
-{
-	return _pthread_self();
-}
-#define pthread_self() _pthread_self()
-
 int pthread_join(pthread_t thread, void** value_ptr)
 {
 	do {
@@ -666,13 +652,6 @@ int pthread_setcanceltype(int type, int* oldtype)
 		*oldtype = type;
 	return 0;
 }
-
-#undef pthread_testcancel
-void pthread_testcancel(void)
-{
-	_pthread_testcancel();
-}
-#define pthread_testcancel() _pthread_testcancel()
 
 int pthread_getschedparam(pthread_t thread, int* __restrict policy, struct sched_param* __restrict param)
 {
@@ -1330,3 +1309,21 @@ extern "C" void* __attribute__((__regparm__(1))) ___tls_get_addr(tls_index* ti)
 	return reinterpret_cast<void*>(uthread->dtv[ti->ti_module] + ti->ti_offset);
 }
 #endif
+
+#undef pthread_equal
+int pthread_equal(pthread_t t1, pthread_t t2)
+{
+	return _pthread_equal(t1, t2);
+}
+
+#undef pthread_self
+pthread_t pthread_self(void)
+{
+	return _pthread_self();
+}
+
+#undef pthread_testcancel
+void pthread_testcancel(void)
+{
+	_pthread_testcancel();
+}

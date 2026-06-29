@@ -108,7 +108,6 @@ int			pthread_condattr_setclock(pthread_condattr_t* attr, clockid_t clock_id);
 int			pthread_condattr_setpshared(pthread_condattr_t* attr, int pshared);
 int			pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restrict attr, void *(*start_routine)(void*), void* __restrict arg);
 int			pthread_detach(pthread_t thread);
-int			pthread_equal(pthread_t t1, pthread_t t2);
 void		pthread_exit(void* value_ptr) __attribute__((__noreturn__));
 int			pthread_getconcurrency(void);
 int			pthread_getcpuclockid(pthread_t thread_id, clockid_t* clock_id);
@@ -152,7 +151,6 @@ int			pthread_rwlockattr_destroy(pthread_rwlockattr_t* attr);
 int			pthread_rwlockattr_getpshared(const pthread_rwlockattr_t* __restrict attr, int* __restrict pshared);
 int			pthread_rwlockattr_init(pthread_rwlockattr_t* attr);
 int			pthread_rwlockattr_setpshared(pthread_rwlockattr_t* attr, int pshared);
-pthread_t	pthread_self(void);
 int			pthread_setcancelstate(int state, int* oldstate);
 int			pthread_setcanceltype(int type, int* oldtype);
 int			pthread_setconcurrency(int new_level);
@@ -164,16 +162,13 @@ int			pthread_spin_init(pthread_spinlock_t* lock, int pshared);
 int			pthread_spin_lock(pthread_spinlock_t* lock);
 int			pthread_spin_trylock(pthread_spinlock_t* lock);
 int			pthread_spin_unlock(pthread_spinlock_t* lock);
-void		pthread_testcancel(void);
 
 void		pthread_cleanup_pop(int execute);
 void		pthread_cleanup_push(void (*routine)(void*), void* arg);
 
 #define _pthread_equal(t1, t2) ((t1) == (t2))
-#define pthread_equal(t1, t2) _pthread_equal(t1, t2)
 
 #define _pthread_self() (_get_uthread()->id)
-#define pthread_self() _pthread_self()
 
 #define _pthread_testcancel() do { \
 		struct uthread* uthread = _get_uthread(); \
@@ -181,7 +176,20 @@ void		pthread_cleanup_push(void (*routine)(void*), void* arg);
 			if (__builtin_expect(uthread->canceled, 0)) \
 				pthread_exit(PTHREAD_CANCELED); \
 	} while (0)
-#define pthread_testcancel() _pthread_testcancel()
+
+#if __is_libc
+int       pthread_equal(pthread_t t1, pthread_t t2);
+pthread_t pthread_self(void);
+void      pthread_testcancel(void);
+
+#define pthread_equal(t1, t2) _pthread_equal(t1, t2)
+#define pthread_self()        _pthread_self()
+#define pthread_testcancel()  _pthread_testcancel()
+#else
+static inline int       pthread_equal(pthread_t t1, pthread_t t2) { return _pthread_equal(t1, t2); }
+static inline pthread_t pthread_self(void)                        { return _pthread_self(); }
+static inline void      pthread_testcancel(void)                  { _pthread_testcancel(); }
+#endif
 
 __END_DECLS
 
