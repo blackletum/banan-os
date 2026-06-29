@@ -2690,9 +2690,9 @@ namespace Kernel
 		if (prot & PROT_READ)
 			flags |= PageTable::Flags::Present;
 		if (prot & PROT_WRITE)
-			flags |= PageTable::Flags::ReadWrite | PageTable::Flags::Present;
+			flags |= PageTable::Flags::Present | PageTable::Flags::ReadWrite;
 		if (prot & PROT_EXEC)
-			flags |= PageTable::Flags::Execute | PageTable::Flags::Execute;
+			flags |= PageTable::Flags::Present | PageTable::Flags::Execute;
 
 		if (flags == 0)
 			flags = PageTable::Flags::Reserved;
