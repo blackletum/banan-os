@@ -1048,7 +1048,7 @@ namespace Kernel
 			const uint64_t current_ms = SystemTimer::get().ms_since_boot();
 			if (current_ms >= wake_time_ms)
 				break;
-			SystemTimer::get().sleep_ms(wake_time_ms - current_ms);
+			SystemTimer::get().sleep_until_ms(wake_time_ms);
 		}
 
 		const uint64_t current_ms = SystemTimer::get().ms_since_boot();
@@ -1070,7 +1070,7 @@ namespace Kernel
 			return 0;
 
 		const uint64_t wake_time_ns = SystemTimer::get().ns_since_boot() + sleep_ns;
-		SystemTimer::get().sleep_ns(sleep_ns);
+		SystemTimer::get().sleep_until_ns(wake_time_ns);
 
 		const uint64_t current_ns = SystemTimer::get().ns_since_boot();
 		if (current_ns < wake_time_ns)

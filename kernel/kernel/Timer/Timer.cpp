@@ -229,11 +229,18 @@ namespace Kernel
 		return m_timer->pre_scheduler_sleep_ns(ns);
 	}
 
-	void SystemTimer::sleep_ns(uint64_t ns) const
+	void SystemTimer::sleep_for_ns(uint64_t timeout_ns) const
 	{
-		if (ns == 0)
+		const uint64_t base_ns = ns_since_boot();
+		ASSERT(!BAN::Math::will_addition_overflow(base_ns, timeout_ns));
+		Processor::scheduler().block_current_thread(nullptr, base_ns + timeout_ns, nullptr);
+	}
+
+	void SystemTimer::sleep_until_ns(uint64_t waketime_ns) const
+	{
+		if (ns_since_boot() >= waketime_ns)
 			return;
-		Processor::scheduler().block_current_thread(nullptr, ns_since_boot() + ns, nullptr);
+		Processor::scheduler().block_current_thread(nullptr, waketime_ns, nullptr);
 	}
 
 	timespec SystemTimer::real_time() const

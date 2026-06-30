@@ -77,15 +77,21 @@ namespace Kernel
 
 		// blocks current thread and returns either on unblock, eintr, spuriously or after timeout
 		// if mutex is not nullptr, it will be atomically freed before blocking and automatically locked on wake
-		BAN::ErrorOr<void> sleep_or_eintr_ns(uint64_t ns);
+		BAN::ErrorOr<void> sleep_or_eintr_for_ns(uint64_t timeout_ns);
+		BAN::ErrorOr<void> sleep_or_eintr_until_ns(uint64_t waketime_ns);
 		BAN::ErrorOr<void> block_or_eintr_indefinite(ThreadBlocker& thread_blocker, BaseMutex* mutex);
 		BAN::ErrorOr<void> block_or_eintr_or_timeout_ns(ThreadBlocker& thread_blocker, uint64_t timeout_ns, bool etimedout, BaseMutex* mutex);
 		BAN::ErrorOr<void> block_or_eintr_or_waketime_ns(ThreadBlocker& thread_blocker, uint64_t wake_time_ns, bool etimedout, BaseMutex* mutex);
 
-		BAN::ErrorOr<void> sleep_or_eintr_ms(uint64_t ms)
+		BAN::ErrorOr<void> sleep_or_eintr_for_ms(uint64_t timeout_ms)
 		{
-			ASSERT(!BAN::Math::will_multiplication_overflow<uint64_t>(ms, 1'000'000));
-			return sleep_or_eintr_ns(ms * 1'000'000);
+			ASSERT(!BAN::Math::will_multiplication_overflow<uint64_t>(timeout_ms, 1'000'000));
+			return sleep_or_eintr_for_ns(timeout_ms * 1'000'000);
+		}
+		BAN::ErrorOr<void> sleep_or_eintr_until_ms(uint64_t waketime_ms)
+		{
+			ASSERT(!BAN::Math::will_multiplication_overflow<uint64_t>(waketime_ms, 1'000'000));
+			return sleep_or_eintr_until_ns(waketime_ms * 1'000'000);
 		}
 		BAN::ErrorOr<void> block_or_eintr_or_timeout_ms(ThreadBlocker& thread_blocker, uint64_t timeout_ms, bool etimedout, BaseMutex* mutex)
 		{

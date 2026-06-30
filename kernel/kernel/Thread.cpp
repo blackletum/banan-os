@@ -863,11 +863,21 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> Thread::sleep_or_eintr_ns(uint64_t ns)
+	BAN::ErrorOr<void> Thread::sleep_or_eintr_for_ns(uint64_t timeout_ns)
 	{
 		if (is_interrupted_by_signal(true))
 			return BAN::Error::from_errno(EINTR);
-		SystemTimer::get().sleep_ns(ns);
+		SystemTimer::get().sleep_for_ns(timeout_ns);
+		if (is_interrupted_by_signal(true))
+			return BAN::Error::from_errno(EINTR);
+		return {};
+	}
+
+	BAN::ErrorOr<void> Thread::sleep_or_eintr_until_ns(uint64_t waketime_ns)
+	{
+		if (is_interrupted_by_signal(true))
+			return BAN::Error::from_errno(EINTR);
+		SystemTimer::get().sleep_until_ns(waketime_ns);
 		if (is_interrupted_by_signal(true))
 			return BAN::Error::from_errno(EINTR);
 		return {};

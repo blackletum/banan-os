@@ -50,6 +50,7 @@ namespace Kernel
 			[](void* _devfs)
 			{
 				auto* devfs = static_cast<DevFileSystem*>(_devfs);
+				uint64_t next_update_ms = SystemTimer::get().ms_since_boot();
 				while (true)
 				{
 					{
@@ -57,7 +58,8 @@ namespace Kernel
 						for (auto& device : devfs->m_devices)
 							device->update();
 					}
-					SystemTimer::get().sleep_ms(10);
+					SystemTimer::get().sleep_until_ms(next_update_ms);
+					next_update_ms += 10;
 				}
 			}, s_instance
 		));

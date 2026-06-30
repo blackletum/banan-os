@@ -952,7 +952,7 @@ acpi_release_global_lock:
 			{
 				if (IO::inw(fadt().pm1a_cnt_blk) & PM1_CNT_SCI_EN)
 					break;
-				SystemTimer::get().sleep_ms(10);
+				SystemTimer::get().sleep_for_ms(10);
 			}
 
 			if (!(IO::inw(fadt().pm1a_cnt_blk) & PM1_CNT_SCI_EN))

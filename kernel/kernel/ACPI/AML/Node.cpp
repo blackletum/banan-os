@@ -2146,9 +2146,9 @@ namespace Kernel::ACPI::AML
 
 		auto milliseconds = TRY(convert_node(TRY(parse_node(context)), ConvInteger, sizeof(uint64_t)));
 
-		const uint64_t wakeup_ms = SystemTimer::get().ms_since_boot() + milliseconds.as.integer.value;
-		for (uint64_t curr_ms = SystemTimer::get().ms_since_boot(); curr_ms < wakeup_ms; curr_ms = SystemTimer::get().ms_since_boot())
-			SystemTimer::get().sleep_ms(wakeup_ms - curr_ms);
+		const uint64_t waketime_ms = SystemTimer::get().ms_since_boot() + milliseconds.as.integer.value;
+		while (SystemTimer::get().ms_since_boot() < waketime_ms)
+			SystemTimer::get().sleep_until_ms(waketime_ms);
 
 		return {};
 	}
@@ -2392,7 +2392,7 @@ namespace Kernel::ACPI::AML
 		result.type = Node::Type::Integer;
 		result.as.integer.value = BAN::numeric_limits<uint64_t>::max();
 
-		const uint64_t wake_time_ms = (timeout_ms >= 0xFFFF)
+		const uint64_t waketime_ms = (timeout_ms >= 0xFFFF)
 			? BAN::numeric_limits<uint64_t>::max()
 			: SystemTimer::get().ms_since_boot() + timeout_ms;
 
@@ -2401,9 +2401,9 @@ namespace Kernel::ACPI::AML
 		{
 			if (sync_object->node.as.mutex->mutex.try_lock())
 				break;
-			if (SystemTimer::get().ms_since_boot() >= wake_time_ms)
+			if (SystemTimer::get().ms_since_boot() >= waketime_ms)
 				return result;
-			SystemTimer::get().sleep_ms(1);
+			Processor::yield();
 		}
 
 		if (sync_object->node.as.mutex->global_lock)

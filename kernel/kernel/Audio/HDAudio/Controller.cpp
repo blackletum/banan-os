@@ -113,7 +113,7 @@ namespace Kernel
 		// 4.3 The software must wait at least 521 us (25 frames) after reading CRST as a 1
 		// before assuming that codecs have all made status change requests and have been
 		// registered by the controller
-		SystemTimer::get().sleep_ms(1);
+		SystemTimer::get().sleep_for_ns(521'000);
 
 		return {};
 	}

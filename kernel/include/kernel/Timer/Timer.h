@@ -52,8 +52,19 @@ namespace Kernel
 		virtual bool pre_scheduler_sleep_needs_lock() const override;
 		virtual void pre_scheduler_sleep_ns(uint64_t) override;
 
-		void sleep_ms(uint64_t ms) const { ASSERT(!BAN::Math::will_multiplication_overflow<uint64_t>(ms, 1'000'000)); return sleep_ns(ms * 1'000'000); }
-		void sleep_ns(uint64_t ns) const;
+		void sleep_for_ns(uint64_t timeout_ns) const;
+		void sleep_until_ns(uint64_t waketime_ns) const;
+
+		void sleep_for_ms(uint64_t timeout_ms) const
+		{
+			ASSERT(!BAN::Math::will_multiplication_overflow<uint64_t>(timeout_ms, 1'000'000));
+			return sleep_for_ns(timeout_ms * 1'000'000);
+		}
+		void sleep_until_ms(uint64_t waketime_ms) const
+		{
+			ASSERT(!BAN::Math::will_multiplication_overflow<uint64_t>(waketime_ms, 1'000'000));
+			return sleep_until_ns(waketime_ms * 1'000'000);
+		}
 
 		void dont_invoke_scheduler() { m_timer->m_should_invoke_scheduler = false; }
 

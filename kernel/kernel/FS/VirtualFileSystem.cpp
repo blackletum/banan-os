@@ -157,7 +157,7 @@ namespace Kernel
 			if (i == 4)
 				dwarnln("Could not find specified root device, waiting for it to get loaded...");
 
-			SystemTimer::get().sleep_ms(sleep_ms);
+			SystemTimer::get().sleep_for_ms(sleep_ms);
 		}
 
 		derrorln("Could not find root device '{}' after {} ms", root_path, timeout_ms);
