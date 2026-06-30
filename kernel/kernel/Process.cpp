@@ -1036,52 +1036,45 @@ namespace Kernel
 		return child_pid;
 	}
 
-	BAN::ErrorOr<long> Process::sys_sleep(int seconds)
-	{
-		if (seconds == 0)
-			return 0;
-
-		const uint64_t wake_time_ms = SystemTimer::get().ms_since_boot() + (seconds * 1000);
-
-		while (!Thread::current().is_interrupted_by_signal())
-		{
-			const uint64_t current_ms = SystemTimer::get().ms_since_boot();
-			if (current_ms >= wake_time_ms)
-				break;
-			SystemTimer::get().sleep_until_ms(wake_time_ms);
-		}
-
-		const uint64_t current_ms = SystemTimer::get().ms_since_boot();
-		if (current_ms < wake_time_ms)
-			return BAN::Math::div_round_up<long>(wake_time_ms - current_ms, 1000);
-		return 0;
-	}
-
 	BAN::ErrorOr<long> Process::sys_nanosleep(const timespec* user_rqtp, timespec* user_rmtp)
 	{
+		// take current timestamp ASAP
+		uint64_t current_ns = SystemTimer::get().ns_since_boot();
+
 		timespec rqtp;
 		TRY(read_from_user(user_rqtp, &rqtp, sizeof(timespec)));
 
-		if (rqtp.tv_nsec < 0 || rqtp.tv_nsec >= 1'000'000'000)
+		if (rqtp.tv_sec < 0 || rqtp.tv_nsec < 0 || rqtp.tv_nsec >= 1'000'000'000)
 			return BAN::Error::from_errno(EINVAL);
 
-		const uint64_t sleep_ns = (rqtp.tv_sec * 1'000'000'000) + rqtp.tv_nsec;
-		if (sleep_ns == 0)
-			return 0;
+		const uint64_t waketime_ns = [&rqtp, current_ns]() -> uint64_t {
+			if (BAN::Math::will_multiplication_overflow<uint64_t>(rqtp.tv_sec, 1'000'000'000))
+				return BAN::numeric_limits<uint64_t>::max();
+			if (BAN::Math::will_addition_overflow<uint64_t>(rqtp.tv_sec * 1'000'000'000, rqtp.tv_nsec))
+				return BAN::numeric_limits<uint64_t>::max();
+			if (BAN::Math::will_addition_overflow<uint64_t>(rqtp.tv_sec * 1'000'000'000 + rqtp.tv_nsec, current_ns))
+				return BAN::numeric_limits<uint64_t>::max();
+			return rqtp.tv_sec * 1'000'000'000 + rqtp.tv_nsec + current_ns;
+		}();
 
-		const uint64_t wake_time_ns = SystemTimer::get().ns_since_boot() + sleep_ns;
-		SystemTimer::get().sleep_until_ns(wake_time_ns);
-
-		const uint64_t current_ns = SystemTimer::get().ns_since_boot();
-		if (current_ns < wake_time_ns)
+		// NOTE: we shouldn't get woken up unless the thread is interrupted but there is no harm in looping
+		while (current_ns < waketime_ns && !Thread::current().is_interrupted_by_signal())
 		{
-			const uint64_t remaining_ns = wake_time_ns - current_ns;
-			const timespec remaining_ts = {
-				.tv_sec = static_cast<time_t>(remaining_ns / 1'000'000'000),
-				.tv_nsec = static_cast<long>(remaining_ns % 1'000'000'000),
-			};
+			SystemTimer::get().sleep_until_ns(waketime_ns);
+			current_ns = SystemTimer::get().ns_since_boot();
+		}
+
+		if (current_ns < waketime_ns)
+		{
 			if (user_rmtp != nullptr)
+			{
+				const uint64_t remaining_ns = waketime_ns - current_ns;
+				const timespec remaining_ts = {
+					.tv_sec = static_cast<time_t>(remaining_ns / 1'000'000'000),
+					.tv_nsec = static_cast<long>(remaining_ns % 1'000'000'000),
+				};
 				TRY(write_to_user(user_rmtp, &remaining_ts, sizeof(timespec)));
+			}
 			return BAN::Error::from_errno(EINTR);
 		}
 

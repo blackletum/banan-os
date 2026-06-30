@@ -68,7 +68,6 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_exec(const char* path, const char* const* argv, const char* const* envp);
 
 		BAN::ErrorOr<long> sys_wait(pid_t pid, int* stat_loc, int options);
-		BAN::ErrorOr<long> sys_sleep(int seconds);
 		BAN::ErrorOr<long> sys_nanosleep(const timespec* rqtp, timespec* rmtp);
 		BAN::ErrorOr<long> sys_setitimer(int which, const itimerval* value, itimerval* ovalue);
 

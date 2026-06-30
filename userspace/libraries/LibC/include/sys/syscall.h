@@ -16,7 +16,6 @@ __BEGIN_DECLS
 	O(SYS_RENAMEAT,			renameat)		\
 	O(SYS_FORK,				fork)			\
 	O(SYS_EXEC,				exec)			\
-	O(SYS_SLEEP,			sleep)			\
 	O(SYS_WAIT,				wait)			\
 	O(SYS_READ_DIR,			readdir)		\
 	O(SYS_SET_UID,			setuid)			\

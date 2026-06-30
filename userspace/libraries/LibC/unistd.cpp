@@ -622,18 +622,24 @@ int pipe(int fildes[2])
 
 unsigned int sleep(unsigned int seconds)
 {
-	pthread_testcancel();
-	unsigned int ret = syscall(SYS_SLEEP, seconds);
-	if (ret > 0)
-		errno = EINTR;
-	return ret;
+	const timespec rq_ts {
+		.tv_sec = seconds,
+		.tv_nsec = 0,
+	};
+	timespec rm_ts;
+	if (nanosleep(&rq_ts, &rm_ts) == 0)
+		return 0;
+	if (errno != EINTR)
+		return seconds;
+	return rm_ts.tv_sec + !!rm_ts.tv_nsec;
 }
 
 int usleep(useconds_t usec)
 {
-	timespec ts;
-	ts.tv_sec = usec / 1'000'000;
-	ts.tv_nsec = (usec % 1'000'000) * 1000;
+	const timespec ts {
+		.tv_sec  = static_cast<time_t>(usec / 1'000'000),
+		.tv_nsec = static_cast<long>((usec % 1'000'000) * 1000),
+	};
 	return nanosleep(&ts, nullptr);
 }
 
