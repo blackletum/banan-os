@@ -2,12 +2,12 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <limits.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <unistd.h>
 
 static constexpr size_t s_allocator_chunk_size { 64 };
 static constexpr size_t s_allocator_size       { 1024 * 1024 };
@@ -248,10 +248,11 @@ void* malloc(size_t total_size)
 
 	if (s_allocator_count == s_allocator_capacity)
 	{
-		const size_t allocator_pages = (s_allocator_capacity * sizeof(BitmapAllocator) + PAGE_SIZE - 1) / PAGE_SIZE;
+		const size_t page_size = getpagesize();
+		const size_t allocator_pages = (s_allocator_capacity * sizeof(BitmapAllocator) + page_size - 1) / page_size;
 		const size_t new_allocator_pages = allocator_pages + 1;
 
-		void* new_allocators = mmap(nullptr, new_allocator_pages * PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+		void* new_allocators = mmap(nullptr, new_allocator_pages * page_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 		if (new_allocators == MAP_FAILED)
 			goto malloc_return;
 
@@ -261,7 +262,7 @@ void* malloc(size_t total_size)
 		munmap(s_allocators, s_allocator_capacity * sizeof(BitmapAllocator));
 
 		s_allocators = static_cast<BitmapAllocator*>(new_allocators);
-		s_allocator_capacity = new_allocator_pages * PAGE_SIZE / sizeof(BitmapAllocator);
+		s_allocator_capacity = new_allocator_pages * page_size / sizeof(BitmapAllocator);
 	}
 
 	if (!s_allocators[s_allocator_count].initialize())
