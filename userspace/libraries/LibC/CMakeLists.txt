@@ -40,6 +40,7 @@ set(LIBC_SOURCES
 	stdlib.cpp
 	string.cpp
 	strings.cpp
+	sys/auxv.cpp
 	sys/banan-os.cpp
 	sys/epoll.cpp
 	sys/eventfd.cpp

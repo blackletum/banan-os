@@ -149,6 +149,18 @@ __BEGIN_DECLS
 #define DT_LOPROC       0x70000000
 #define DT_HIPROC       0x7FFFFFFF
 
+#define AT_NULL        0
+#define AT_IGNORE      1
+#define AT_EXECFD      2
+#define AT_PHDR        3
+#define AT_PHENT       4
+#define AT_PHNUM       5
+#define AT_PAGESZ      6
+#define AT_BASE        7
+#define AT_SHARED_PAGE 0xFFFF0001
+#define AT_STACK_BASE  0xFFFF0002
+#define AT_STACK_SIZE  0xFFFF0003
+
 #define R_386_NONE          0
 #define R_386_32            1
 #define R_386_PC32          2

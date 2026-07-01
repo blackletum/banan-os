@@ -27,6 +27,8 @@ namespace LibELF
 		AT_BASE   = 7,
 
 		AT_SHARED_PAGE = 0xFFFF0001,
+		AT_STACK_BASE  = 0xFFFF0002,
+		AT_STACK_SIZE  = 0xFFFF0003,
 	};
 
 }
