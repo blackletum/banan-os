@@ -158,6 +158,8 @@ int setenv(const char* name, const char* val, int overwrite)
 	const size_t vallen = strlen(val);
 
 	auto* string = static_cast<char*>(malloc(namelen + vallen + 2));
+	if (string == nullptr)
+		return -1;
 	memcpy(string, name, namelen);
 	string[namelen] = '=';
 	memcpy(string + namelen + 1, val, vallen);
