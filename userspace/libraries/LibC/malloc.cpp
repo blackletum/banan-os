@@ -238,8 +238,6 @@ void* malloc(size_t total_size)
 		return &header + 1;
 	}
 
-	constexpr size_t allocators_per_page = PAGE_SIZE / sizeof(BitmapAllocator);
-
 	void* result = nullptr;
 
 	pthread_mutex_lock(&s_allocator_lock);
@@ -248,9 +246,12 @@ void* malloc(size_t total_size)
 		if ((result = s_allocators[i].allocate(total_size)))
 			goto malloc_return;
 
-	if (s_allocator_capacity % allocators_per_page == 0)
+	if (s_allocator_count == s_allocator_capacity)
 	{
-		void* new_allocators = mmap(nullptr, (s_allocator_capacity + allocators_per_page) * sizeof(BitmapAllocator), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+		const size_t allocator_pages = (s_allocator_capacity * sizeof(BitmapAllocator) + PAGE_SIZE - 1) / PAGE_SIZE;
+		const size_t new_allocator_pages = allocator_pages + 1;
+
+		void* new_allocators = mmap(nullptr, new_allocator_pages * PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 		if (new_allocators == MAP_FAILED)
 			goto malloc_return;
 
@@ -260,7 +261,7 @@ void* malloc(size_t total_size)
 		munmap(s_allocators, s_allocator_capacity * sizeof(BitmapAllocator));
 
 		s_allocators = static_cast<BitmapAllocator*>(new_allocators);
-		s_allocator_capacity = s_allocator_capacity + allocators_per_page;
+		s_allocator_capacity = new_allocator_pages * PAGE_SIZE / sizeof(BitmapAllocator);
 	}
 
 	if (!s_allocators[s_allocator_count].initialize())
