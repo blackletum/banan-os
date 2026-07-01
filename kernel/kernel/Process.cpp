@@ -126,6 +126,9 @@ namespace Kernel
 			TRY(process->m_cmdline.back().append(argument));
 		}
 
+		auto* thread = TRY(Thread::create_userspace(process, process->page_table()));
+		BAN::ScopeGuard thread_deleter([thread] { delete thread; });
+
 		LockGuard _(process->m_process_lock);
 
 		auto executable_file = TRY(process->find_file(AT_FDCWD, path.data(), O_EXEC));
@@ -144,7 +147,7 @@ namespace Kernel
 			process->m_credentials.set_egid(executable_inode->gid());
 
 		BAN::Vector<LibELF::AuxiliaryVector> auxiliary_vector;
-		TRY(auxiliary_vector.reserve(2 + 2 * executable.interp_base.has_value()));
+		TRY(auxiliary_vector.reserve(5 + 2 * executable.interp_base.has_value()));
 
 		if (executable.interp_base.has_value())
 		{
@@ -159,7 +162,7 @@ namespace Kernel
 			}));
 		}
 
-		process->m_shared_page_vaddr = process->page_table().reserve_free_page(process->m_mapped_regions.back()->vaddr(), USERSPACE_END);
+		process->m_shared_page_vaddr = process->page_table().reserve_free_page(executable.interp_base.value_or(0x400000), USERSPACE_END);
 		if (process->m_shared_page_vaddr == 0)
 			return BAN::Error::from_errno(ENOMEM);
 		process->page_table().map_page_at(
@@ -169,8 +172,23 @@ namespace Kernel
 		);
 
 		TRY(auxiliary_vector.push_back({
+			.a_type = LibELF::AT_PAGESZ,
+			.a_un = { .a_val = PAGE_SIZE },
+		}));
+
+		TRY(auxiliary_vector.push_back({
 			.a_type = LibELF::AT_SHARED_PAGE,
 			.a_un = { .a_ptr = reinterpret_cast<void*>(process->m_shared_page_vaddr) },
+		}));
+
+		TRY(auxiliary_vector.push_back({
+			.a_type = LibELF::AT_STACK_BASE,
+			.a_un = { .a_ptr = reinterpret_cast<void*>(thread->userspace_stack().vaddr()) },
+		}));
+
+		TRY(auxiliary_vector.push_back({
+			.a_type = LibELF::AT_STACK_SIZE,
+			.a_un = { .a_ptr = reinterpret_cast<void*>(thread->userspace_stack().size()) },
 		}));
 
 		TRY(auxiliary_vector.push_back({
@@ -186,8 +204,7 @@ namespace Kernel
 			tls_addr = tls_result.addr;
 		}
 
-		auto* thread = MUST(Thread::create_userspace(process, process->page_table()));
-		MUST(thread->initialize_userspace(
+		TRY(thread->initialize_userspace(
 			executable.entry_point,
 			process->m_cmdline.span(),
 			process->m_environ.span(),
@@ -204,6 +221,7 @@ namespace Kernel
 #endif
 		}
 
+		thread_deleter.disable();
 		process->add_thread(thread);
 		process->register_to_scheduler();
 		return process;
@@ -824,8 +842,15 @@ namespace Kernel
 			BAN::String executable_path;
 			TRY(executable_path.append(executable_file.canonical_path));
 
+			// This is ugly but thread insterts userspace stack to process' memory region
+			BAN::swap(m_mapped_regions, new_mapped_regions);
+			auto new_thread_or_error = Thread::create_userspace(this, *new_page_table);
+			BAN::swap(m_mapped_regions, new_mapped_regions);
+			auto* new_thread = TRY(new_thread_or_error);
+			BAN::ScopeGuard new_thread_deleter([new_thread] { delete new_thread; });
+
 			BAN::Vector<LibELF::AuxiliaryVector> auxiliary_vector;
-			TRY(auxiliary_vector.reserve(2 + 2 * executable.interp_base.has_value()));
+			TRY(auxiliary_vector.reserve(5 + 2 * executable.interp_base.has_value()));
 
 			BAN::ScopeGuard execfd_guard([this, &auxiliary_vector] {
 				if (auxiliary_vector.empty())
@@ -848,7 +873,7 @@ namespace Kernel
 				}));
 			}
 
-			const vaddr_t shared_page_vaddr = new_page_table->reserve_free_page(new_mapped_regions.back()->vaddr(), USERSPACE_END);
+			const vaddr_t shared_page_vaddr = new_page_table->reserve_free_page(executable.interp_base.value_or(0x400000), USERSPACE_END);
 			if (shared_page_vaddr == 0)
 				return BAN::Error::from_errno(ENOMEM);
 			new_page_table->map_page_at(
@@ -858,8 +883,23 @@ namespace Kernel
 			);
 
 			TRY(auxiliary_vector.push_back({
+				.a_type = LibELF::AT_PAGESZ,
+				.a_un = { .a_val = PAGE_SIZE },
+			}));
+
+			TRY(auxiliary_vector.push_back({
 				.a_type = LibELF::AT_SHARED_PAGE,
 				.a_un = { .a_ptr = reinterpret_cast<void*>(shared_page_vaddr) },
+			}));
+
+			TRY(auxiliary_vector.push_back({
+				.a_type = LibELF::AT_STACK_BASE,
+				.a_un = { .a_ptr = reinterpret_cast<void*>(new_thread->userspace_stack().vaddr()) },
+			}));
+
+			TRY(auxiliary_vector.push_back({
+				.a_type = LibELF::AT_STACK_SIZE,
+				.a_un = { .a_ptr = reinterpret_cast<void*>(new_thread->userspace_stack().size()) },
 			}));
 
 			TRY(auxiliary_vector.push_back({
@@ -867,12 +907,6 @@ namespace Kernel
 				.a_un = { .a_val = 0 },
 			}));
 
-			// This is ugly but thread insterts userspace stack to process' memory region
-			BAN::swap(m_mapped_regions, new_mapped_regions);
-			auto new_thread_or_error = Thread::create_userspace(this, *new_page_table);
-			BAN::swap(m_mapped_regions, new_mapped_regions);
-
-			auto* new_thread = TRY(new_thread_or_error);
 			TRY(new_thread->initialize_userspace(
 				executable.entry_point,
 				str_argv.span(),
@@ -926,6 +960,7 @@ namespace Kernel
 			m_threads.front()->m_process = nullptr;
 			m_threads.front()->give_keep_alive_page_table(BAN::move(m_page_table));
 
+			new_thread_deleter.disable();
 			MUST(Processor::scheduler().add_thread(new_thread));
 			m_threads.front() = new_thread;
 
