@@ -54,3 +54,12 @@ int posix_fadvise(int fd, off_t offset, off_t len, int advice)
 	(void)advice;
 	return 0;
 }
+
+int posix_fallocate(int fd, off_t offset, off_t size)
+{
+	(void)fd;
+	(void)offset;
+	(void)size;
+	fprintf(stddbg, "TODO: posix_fallocate\n");
+	return 0;
+}
