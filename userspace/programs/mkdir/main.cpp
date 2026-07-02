@@ -1,28 +1,15 @@
-#include <limits.h>
 #include <errno.h>
+#include <getopt.h>
+#include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 
-int create_directory(const char* path, bool create_parents)
+static const char* s_argv0 { nullptr };
+
+bool create_parents(const char* path, bool verbose)
 {
-	const size_t pathlen = strlen(path);
-	if (pathlen == 0 || pathlen >= PATH_MAX)
-	{
-		fprintf(stderr, "mkdir: %s\n", strerror(ENOENT));
-		return 1;
-	}
-
-	if (!create_parents)
-	{
-		const int ret = mkdir(path, 0755);
-		if (ret == 0)
-			return 0;
-		perror("mkdir");
-		return -1;
-	}
-
-	int ret = 0;
 	char buffer[PATH_MAX];
 	for (size_t i = 0; path[i];)
 	{
@@ -30,30 +17,114 @@ int create_directory(const char* path, bool create_parents)
 			buffer[i] = path[i];
 		for (; path[i] && path[i] == '/'; i++)
 			buffer[i] = path[i];
+		if (path[i] == '\0')
+			break;
 		buffer[i] = '\0';
-		if (mkdir(buffer, 0755) == -1 && errno != EEXIST)
+
+		if (mkdir(buffer, 0) == -1)
 		{
-			perror("mkdir");
-			ret = -1;
+			if (errno == EEXIST)
+				continue;
+			fprintf(stderr, "%s: cannot create '%s': %s\n", s_argv0, path, strerror(errno));
+			return false;
+		}
+
+		const mode_t filemask = umask(0);
+		umask(filemask);
+
+		chmod(buffer, (S_IWUSR | S_IXUSR | ~filemask) & 0777);
+
+		if (verbose)
+			printf("%s: created directory '%s'\n", s_argv0, path);
+	}
+
+	return true;
+}
+
+bool create_directory(const char* path, mode_t mode, bool verbose, bool parents)
+{
+	if (parents && !create_parents(path, verbose))
+		return false;
+
+	if (mkdir(path, mode) == -1)
+	{
+		fprintf(stderr, "%s: cannot create '%s': %s\n", s_argv0, path, strerror(errno));
+		return false;
+	}
+
+	if (verbose)
+		printf("%s: created directory '%s'\n", s_argv0, path);
+
+	return true;
+}
+
+int main(int argc, char* argv[])
+{
+	s_argv0 = argv[0];
+
+	mode_t mode { S_IRWXU | S_IRWXG | S_IRWXO };
+	bool verbose { false };
+	bool parents { false };
+
+	for (;;)
+	{
+		static option long_options[] {
+			{ "mode",    required_argument, nullptr, 'm' },
+			{ "parents", no_argument,       nullptr, 'p' },
+			{ "verbose", no_argument,       nullptr, 'v' },
+			{ "help",    no_argument,       nullptr,  0  },
+			{}
+		};
+
+		int ch = getopt_long(argc, argv, "m:pv", long_options, nullptr);
+		if (ch == -1)
+			break;
+
+		switch (ch)
+		{
+			case 'm':
+			{
+				char* endptr = nullptr;
+				mode = strtol(optarg, &endptr, 0);
+				if (*endptr != '\0')
+				{
+					fprintf(stderr, "%s: invalid mode '%s'\n", argv[0], optarg);
+					fprintf(stderr, "see '%s --help' for usage\n", argv[0]);
+					return 1;
+				}
+				break;
+			}
+			case 'p':
+				parents = true;
+				break;
+			case 'v':
+				verbose = true;
+				break;
+			case 0:
+				fprintf(stderr, "usage: %s [OPTION]... DIRECTORY...\n", argv[0]);
+				fprintf(stderr, "  create DIRECTORYs\n");
+				fprintf(stderr, "OPTIONS:\n");
+				fprintf(stderr, "  -m, --mode=MODE  set mode to MODE\n");
+				fprintf(stderr, "  -p, --parents    create any missing intermediate components\n");
+				fprintf(stderr, "  -v, --verbose    print a message for each created directory\n");
+				fprintf(stderr, "      --help       show this message and exit\n");
+				return 0;
+			case ':' : case '?':
+				fprintf(stderr, "see '%s --help' for usage\n", argv[0]);
+				return 1;
 		}
 	}
 
-	return ret;
-}
-
-int main(int argc, char** argv)
-{
-	const bool create_parents = argc >= 2 && strcmp(argv[1], "-p") == 0;
-
-	if (argc <= 1 + create_parents)
+	if (optind >= argc)
 	{
-		fprintf(stderr, "missing operand\n");
+		fprintf(stderr, "%s: missing operand\n", argv[0]);
+		fprintf(stderr, "see '%s --help' for usage\n", argv[0]);
 		return 1;
 	}
 
 	int ret = 0;
-	for (int i = 1 + create_parents; i < argc; i++)
-		if (create_directory(argv[i], create_parents) == -1)
+	for (int i = optind; i < argc; i++)
+		if (!create_directory(argv[i], mode, verbose, parents))
 			ret = 1;
 
 	return ret;
