@@ -44,6 +44,7 @@ namespace LibAudio
 
 		bool is_playing() const { return m_audio_buffer->tail != m_audio_buffer->head; }
 
+		size_t queueable_samples() const;
 		size_t queue_samples(BAN::Span<const AudioBuffer::sample_t> samples);
 
 	private:

@@ -122,7 +122,7 @@ namespace LibAudio
 	{
 		ASSERT(m_server_fd != -1);
 
-		LibAudio::Packet packet {
+		const LibAudio::Packet packet {
 			.type = LibAudio::Packet::RegisterBuffer,
 			.parameter = static_cast<uint64_t>(m_smo_key),
 		};
@@ -143,7 +143,7 @@ namespace LibAudio
 			return;
 		m_audio_buffer->paused = paused;
 
-		LibAudio::Packet packet {
+		const LibAudio::Packet packet {
 			.type = LibAudio::Packet::Notify,
 			.parameter = {},
 		};
@@ -151,24 +151,24 @@ namespace LibAudio
 		send(m_server_fd, &packet, sizeof(packet), 0);
 	}
 
+	size_t Audio::queueable_samples() const
+	{
+		const uint32_t server_samples = (m_audio_buffer->capacity + m_audio_buffer->head - m_audio_buffer->tail) % m_audio_buffer->capacity;
+		return m_audio_buffer->capacity - server_samples - 1;
+	}
+
 	size_t Audio::queue_samples(BAN::Span<const AudioBuffer::sample_t> samples)
 	{
-		size_t samples_queued = 0;
+		const uint32_t sample_count = BAN::Math::min<uint32_t>(queueable_samples(), samples.size());
 
-		uint32_t head = m_audio_buffer->head;
-		while (samples_queued < samples.size())
-		{
-			const uint32_t next_head = (head + 1) % m_audio_buffer->capacity;
-			if (next_head == m_audio_buffer->tail)
-				break;
-			m_audio_buffer->samples[head] = samples[samples_queued++];
-			head = next_head;
-			if (samples_queued % 128 == 0)
-				m_audio_buffer->head = head;
-		}
-		if (samples_queued % 128 != 0)
-			m_audio_buffer->head = head;
-		return samples_queued;
+		const uint32_t head     = m_audio_buffer->head;
+		const uint32_t capacity = m_audio_buffer->capacity;
+
+		for (size_t i = 0; i < sample_count; i++)
+			m_audio_buffer->samples[(head + i) % capacity] = samples[i];
+		m_audio_buffer->head = (head + sample_count) % capacity;
+
+		return sample_count;
 	}
 
 	void Audio::update()
@@ -179,13 +179,18 @@ namespace LibAudio
 		if (!m_audio_loader->samples_remaining() && !is_playing())
 			return set_paused(true);
 
-		while (m_audio_loader->samples_remaining())
+		for (;;)
 		{
-			const uint32_t next_head = (m_audio_buffer->head + 1) % m_audio_buffer->capacity;
-			if (next_head == m_audio_buffer->tail)
+			const uint32_t sample_count = BAN::Math::min<uint32_t>(queueable_samples(), m_audio_loader->samples_remaining());
+			if (sample_count == 0)
 				break;
-			m_audio_buffer->samples[m_audio_buffer->head] = m_audio_loader->get_sample();
-			m_audio_buffer->head = next_head;
+
+			const uint32_t head     = m_audio_buffer->head;
+			const uint32_t capacity = m_audio_buffer->capacity;
+
+			for (size_t i = 0; i < sample_count; i++)
+				m_audio_buffer->samples[(head + i) % capacity] = m_audio_loader->get_sample();
+			m_audio_buffer->head = (head + sample_count) % capacity;
 		}
 	}
 
