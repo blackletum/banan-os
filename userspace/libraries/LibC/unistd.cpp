@@ -58,42 +58,20 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 		::environ = environ;
 
 #if defined(__x86_64__)
-	if (uthread* self = reinterpret_cast<uthread*>(syscall(SYS_GET_FSBASE)))
+	if (syscall(SYS_GET_FSBASE) == 0)
 #elif defined(__i686__)
-	if (uthread* self = reinterpret_cast<uthread*>(syscall(SYS_GET_GSBASE)))
+	if (syscall(SYS_GET_GSBASE) == 0)
 #else
 #error
 #endif
 	{
-		self->id = syscall(SYS_THREAD_GETID);
-		self->errno_ = 0;
-		self->cancel_type = PTHREAD_CANCEL_DEFERRED;
-		self->cancel_state = PTHREAD_CANCEL_ENABLE;
-		self->canceled = false;
-		self->cleanup_funs = nullptr;
-	}
-	else
-	{
-		alignas(uthread) static uint8_t storage[sizeof(uthread)];
-
-		uthread& uthread = *reinterpret_cast<struct uthread*>(storage);
-		uthread = {
-			.self = &uthread,
-			.master_tls_addr = nullptr,
-			.master_tls_size = 0,
-			.master_tls_module_count = 1,
-			.dynamic_tls = nullptr,
-			.id = static_cast<pthread_t>(syscall(SYS_THREAD_GETID)),
-			.errno_ = 0,
-			.cancel_type = PTHREAD_CANCEL_DEFERRED,
-			.cancel_state = PTHREAD_CANCEL_ENABLE,
-			.canceled = false,
-			.cleanup_funs = nullptr,
-			.specific_keys = {},
-			.specific_vals = {},
-			.dtv = { 0 },
-		};
-
+		static uthread uthread {};
+		uthread.self = &uthread;
+		uthread.master_tls_addr = nullptr;
+		uthread.master_tls_size = 0;
+		uthread.master_tls_module_count = 0;
+		uthread.dynamic_tls = nullptr;
+		uthread.dtv[0] = 0;
 #if defined(__x86_64__)
 		syscall(SYS_SET_FSBASE, &uthread);
 #elif defined(__i686__)
@@ -108,7 +86,7 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 		sigset_t ss;
 		sigemptyset(&ss);
 
-		struct sigaction sa {
+		const struct sigaction sa {
 			.sa_sigaction = __dump_backtrace,
 			.sa_mask = ss,
 			.sa_flags = SA_RESETHAND | SA_SIGINFO,

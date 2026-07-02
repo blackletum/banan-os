@@ -3,9 +3,6 @@
 #include <BAN/Debug.h>
 #include <BAN/PlacementNew.h>
 
-#include <kernel/Arch.h>
-#include <kernel/Thread.h>
-
 #include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -33,21 +30,32 @@ static void _pthread_cancel_handler(int)
 }
 
 __attribute__((constructor))
-static void _install_main_thread_cancel_handler()
+static void _init_pthread()
 {
+	uthread* uthread = _get_uthread();
+	uthread->id              = syscall(SYS_THREAD_GETID);
+	uthread->attr            = s_default_pthread_attr;
+	uthread->errno_          = 0;
+	uthread->cancel_type     = PTHREAD_CANCEL_DEFERRED;
+	uthread->cancel_state    = PTHREAD_CANCEL_ENABLE;
+	uthread->canceled        = false;
+	uthread->cleanup_funcs   = nullptr;
+	memset(uthread->specific_keys, 0, sizeof(uthread->specific_keys));
+	memset(uthread->specific_vals, 0, sizeof(uthread->specific_vals));
+
 	signal(SIGCANCEL, &_pthread_cancel_handler);
 }
 
 // stack is 16 byte aligned on entry, this `call` is used to align it
 extern "C" void _pthread_trampoline(void*);
 asm(
-#if ARCH(x86_64)
+#if defined(__x86_64__)
 "_pthread_trampoline:"
 	"popq %rdi;"
 	"andq $-16, %rsp;"
 	"xorq %rbp, %rbp;"
 	"call _pthread_trampoline_cpp"
-#elif ARCH(i686)
+#elif defined(__i686__)
 "_pthread_trampoline:"
 	"popl %edi;"
 	"andl $-16, %esp;"
@@ -1322,7 +1330,7 @@ extern "C" void* __tls_get_addr(tls_index* ti)
 	return reinterpret_cast<void*>(uthread->dtv[ti->ti_module] + ti->ti_offset);
 }
 
-#if ARCH(i686)
+#if defined(__i686__)
 extern "C" void* __attribute__((__regparm__(1))) ___tls_get_addr(tls_index* ti)
 {
 	auto* uthread = _get_uthread();
