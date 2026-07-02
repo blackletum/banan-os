@@ -61,6 +61,17 @@ static void _init_pthread()
 	if (auto value = getauxval(AT_STACK_SIZE))
 		uthread->attr.stacksize = value;
 
+	char buffer[PATH_MAX];
+	if (readlink("/proc/self/exe", buffer, sizeof(buffer)) == -1)
+		exit(0xFF);
+
+	const char* last_slash = strrchr(buffer, '/');
+	if (last_slash == nullptr)
+		last_slash = buffer;
+
+	strncpy(uthread->name, last_slash, sizeof(uthread->name));
+	uthread->name[sizeof(uthread->name) - 1] = '\0';
+
 	signal(SIGCANCEL, &_pthread_cancel_handler);
 }
 
@@ -449,6 +460,7 @@ int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restric
 			.dynamic_tls = self->dynamic_tls,
 			.id = -1,
 			.attr = attr ? *attr : s_default_pthread_attr,
+			.name = {},
 			.errno_ = 0,
 			.libc_owns_stack = false,
 			.cancel_type = PTHREAD_CANCEL_DEFERRED,
@@ -459,6 +471,7 @@ int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restric
 			.specific_vals = {},
 			.dtv = { self->dtv[0] }
 		};
+		strcpy(uthread->name, self->name);
 
 		if (uthread->attr.stackaddr == nullptr)
 		{
@@ -1335,6 +1348,24 @@ int pthread_setattr_default_np(const pthread_attr_t* attr)
 {
 	// TODO: validate, make thread safe?
 	s_default_pthread_attr = *attr;
+	return 0;
+}
+
+int pthread_getname_np(pthread_t thread, char* name, size_t size)
+{
+	const size_t namelen = strlen(thread->name);
+	if (size < namelen + 1)
+		return ERANGE;
+	strcpy(name, thread->name);
+	return 0;
+}
+
+int pthread_setname_np(pthread_t thread, const char* name)
+{
+	const size_t namelen = strlen(name);
+	if (namelen >= sizeof(thread->name))
+		return ERANGE;
+	strcpy(thread->name, name);
 	return 0;
 }
 

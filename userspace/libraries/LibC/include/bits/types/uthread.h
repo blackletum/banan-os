@@ -48,6 +48,7 @@ struct uthread
 	// LIBC
 	pid_t id;
 	pthread_attr_t attr;
+	char name[16];
 	int errno_;
 	int libc_owns_stack;
 	int cancel_type;

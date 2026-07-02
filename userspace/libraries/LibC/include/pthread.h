@@ -170,6 +170,8 @@ void		pthread_cleanup_push(void (*routine)(void*), void* arg);
 int pthread_getattr_np(pthread_t thread, pthread_attr_t* attr);
 int pthread_getattr_default_np(pthread_attr_t* attr);
 int pthread_setattr_default_np(const pthread_attr_t* attr);
+int pthread_getname_np(pthread_t thread, char* name, size_t size);
+int pthread_setname_np(pthread_t thread, const char* name);
 
 #define _pthread_equal(t1, t2) ((t1) == (t2))
 
