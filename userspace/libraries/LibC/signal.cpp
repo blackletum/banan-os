@@ -1,5 +1,6 @@
 #include <BAN/Assert.h>
 #include <errno.h>
+#include <pthread.h>
 #include <signal.h>
 #include <string.h>
 #include <sys/syscall.h>
@@ -40,7 +41,7 @@ void psignal(int signum, const char* message)
 
 int pthread_kill(pthread_t thread, int sig)
 {
-	if (syscall(SYS_PTHREAD_KILL, thread, sig) == -1)
+	if (syscall(SYS_THREAD_KILL, thread, sig) == -1)
 		return errno;
 	return 0;
 }
@@ -54,8 +55,7 @@ int pthread_sigmask(int how, const sigset_t* __restrict set, sigset_t* __restric
 
 int raise(int sig)
 {
-	// FIXME: won't work after multithreaded
-	return kill(getpid(), sig);
+	return pthread_kill(pthread_self(), sig);
 }
 
 int sigaction(int sig, const struct sigaction* __restrict act, struct sigaction* __restrict oact)

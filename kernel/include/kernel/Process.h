@@ -209,12 +209,12 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_set_gsbase(void*);
 		BAN::ErrorOr<long> sys_get_gsbase();
 
-		BAN::ErrorOr<long> sys_pthread_create(const pthread_attr_t* attr, void (*entry)(void*), void* arg);
-		BAN::ErrorOr<long> sys_pthread_exit(void* value);
-		BAN::ErrorOr<long> sys_pthread_join(pthread_t thread, void** value);
-		BAN::ErrorOr<long> sys_pthread_self();
-		BAN::ErrorOr<long> sys_pthread_kill(pthread_t thread, int signal);
-		BAN::ErrorOr<long> sys_pthread_detach(pthread_t thread);
+		BAN::ErrorOr<long> sys_thread_create(void (*entry)(void*), void* arg);
+		BAN::ErrorOr<long> sys_thread_exit(void* value);
+		BAN::ErrorOr<long> sys_thread_join(pid_t tid, void** value);
+		BAN::ErrorOr<long> sys_thread_getid();
+		BAN::ErrorOr<long> sys_thread_kill(pid_t tid, int signal);
+		BAN::ErrorOr<long> sys_thread_detach(pid_t tid);
 
 		BAN::ErrorOr<long> sys_clock_gettime(clockid_t, timespec*);
 
@@ -364,13 +364,13 @@ namespace Kernel
 
 		BAN::Vector<Thread*> m_threads;
 
-		struct pthread_info_t
+		struct exited_thread_info_t
 		{
-			pthread_t thread;
+			pid_t tid;
 			void* value;
 		};
-		BAN::Vector<pthread_info_t> m_exited_pthreads;
-		ThreadBlocker m_pthread_exit_blocker;
+		BAN::Vector<exited_thread_info_t> m_exited_threads;
+		ThreadBlocker m_thread_exit_blocker;
 
 		uint64_t m_alarm_interval_ns { 0 };
 		uint64_t m_alarm_wake_time_ns { 0 };

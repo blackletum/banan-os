@@ -311,7 +311,7 @@ namespace Kernel
 		Processor::gdt().set_cpu_index(Processor::current_index());
 	}
 
-	BAN::ErrorOr<Thread*> Thread::pthread_create(entry_t entry, void* arg)
+	BAN::ErrorOr<Thread*> Thread::thread_create(entry_t entry, void* arg)
 	{
 		auto* thread = TRY(create_userspace(m_process, m_process->page_table()));
 

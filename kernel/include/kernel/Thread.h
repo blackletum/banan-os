@@ -50,7 +50,7 @@ namespace Kernel
 		static BAN::ErrorOr<Thread*> create_userspace(Process*, PageTable&);
 		~Thread();
 
-		BAN::ErrorOr<Thread*> pthread_create(entry_t, void*);
+		BAN::ErrorOr<Thread*> thread_create(entry_t, void*);
 
 		BAN::ErrorOr<Thread*> clone(Process*, uintptr_t sp, uintptr_t ip);
 		void setup_process_cleanup();

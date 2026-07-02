@@ -62,7 +62,7 @@ asm(
 extern "C" void _pthread_trampoline_cpp(void* arg)
 {
 	auto info = *reinterpret_cast<pthread_trampoline_info_t*>(arg);
-	info.uthread->id = syscall(SYS_PTHREAD_SELF);
+	info.uthread->id = syscall(SYS_THREAD_GETID);
 #if defined(__x86_64__)
 	syscall(SYS_SET_FSBASE, info.uthread);
 #elif defined(__i686__)
@@ -432,7 +432,7 @@ int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __rest
 		info->uthread = uthread;
 	}
 
-	syscall_ret = syscall(SYS_PTHREAD_CREATE, attr, _pthread_trampoline, info);
+	syscall_ret = syscall(SYS_THREAD_CREATE, _pthread_trampoline, info);
 	if (syscall_ret == -1)
 		goto pthread_create_error;
 
@@ -450,7 +450,7 @@ pthread_create_error:
 
 int pthread_detach(pthread_t thread)
 {
-	return syscall(SYS_PTHREAD_DETACH, thread);
+	return syscall(SYS_THREAD_DETACH, thread);
 }
 
 void pthread_exit(void* value_ptr)
@@ -486,7 +486,7 @@ void pthread_exit(void* value_ptr)
 	}
 
 	free_uthread(uthread);
-	syscall(SYS_PTHREAD_EXIT, value_ptr);
+	syscall(SYS_THREAD_EXIT, value_ptr);
 	ASSERT_NOT_REACHED();
 }
 
@@ -495,7 +495,7 @@ int pthread_join(pthread_t thread, void** value_ptr)
 	do {
 		pthread_testcancel();
 		errno = 0;
-	} while (syscall(SYS_PTHREAD_JOIN, thread, value_ptr) == -1 && errno == EINTR);
+	} while (syscall(SYS_THREAD_JOIN, thread, value_ptr) == -1 && errno == EINTR);
 	return errno;
 }
 
@@ -528,7 +528,7 @@ static pthread_mutex_t s_atfork_mutex = PTHREAD_MUTEX_INITIALIZER;
 void _pthread_call_atfork(int state)
 {
 	if (state == _PTHREAD_ATFORK_CHILD)
-		_get_uthread()->id = syscall(SYS_PTHREAD_SELF);
+		_get_uthread()->id = syscall(SYS_THREAD_GETID);
 
 	pthread_mutex_lock(&s_atfork_mutex);
 

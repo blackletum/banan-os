@@ -66,7 +66,7 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 #endif
 	{
 		self->cleanup_stack = nullptr;
-		self->id = syscall(SYS_PTHREAD_SELF);
+		self->id = syscall(SYS_THREAD_GETID);
 		self->errno_ = 0;
 		self->cancel_type = PTHREAD_CANCEL_DEFERRED;
 		self->cancel_state = PTHREAD_CANCEL_ENABLE;
@@ -84,7 +84,7 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 			.master_tls_module_count = 1,
 			.dynamic_tls = nullptr,
 			.cleanup_stack = nullptr,
-			.id = static_cast<pthread_t>(syscall(SYS_PTHREAD_SELF)),
+			.id = static_cast<pthread_t>(syscall(SYS_THREAD_GETID)),
 			.errno_ = 0,
 			.cancel_type = PTHREAD_CANCEL_DEFERRED,
 			.cancel_state = PTHREAD_CANCEL_ENABLE,

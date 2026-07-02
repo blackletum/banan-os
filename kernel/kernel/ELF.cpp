@@ -8,7 +8,6 @@
 
 #include <ctype.h>
 #include <fcntl.h>
-#include <pthread.h>
 
 namespace Kernel::ELF
 {

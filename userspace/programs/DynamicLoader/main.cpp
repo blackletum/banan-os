@@ -223,7 +223,7 @@ constexpr uintptr_t SYM_NOT_FOUND = -1;
 
 static void lock_global_lock()
 {
-	const pthread_t tid = syscall(SYS_PTHREAD_SELF);
+	const pthread_t tid = syscall(SYS_THREAD_GETID);
 
 	pthread_t expected = 0;
 	while (!s_global_locker.compare_exchange(expected, tid))
@@ -1359,7 +1359,7 @@ static void initialize_tls(MasterTLS master_tls)
 		.master_tls_module_count = master_tls.module_count,
 		.dynamic_tls = s_dynamic_tls,
 		.cleanup_stack = nullptr,
-		.id = static_cast<pthread_t>(syscall(SYS_PTHREAD_SELF)),
+		.id = static_cast<pthread_t>(syscall(SYS_THREAD_GETID)),
 		.errno_ = 0,
 		.cancel_type = PTHREAD_CANCEL_DEFERRED,
 		.cancel_state = PTHREAD_CANCEL_ENABLE,

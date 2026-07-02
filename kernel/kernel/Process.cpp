@@ -28,7 +28,6 @@
 #include <LibInput/KeyboardLayout.h>
 
 #include <fcntl.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <sys/banan-os.h>
 #include <sys/eventfd.h>
@@ -245,7 +244,7 @@ namespace Kernel
 	Process::~Process()
 	{
 		ASSERT(m_threads.empty());
-		ASSERT(m_exited_pthreads.empty());
+		ASSERT(m_exited_threads.empty());
 		ASSERT(m_mapped_regions.empty());
 		ASSERT(!m_page_table);
 	}
@@ -293,7 +292,7 @@ namespace Kernel
 			}
 		}
 
-		m_exited_pthreads.clear();
+		m_exited_threads.clear();
 
 		ProcFileSystem::get().on_process_delete(*this);
 
@@ -3412,41 +3411,39 @@ namespace Kernel
 		return Thread::current().get_gsbase();
 	}
 
-	BAN::ErrorOr<long> Process::sys_pthread_create(const pthread_attr_t* user_attr, void (*entry)(void*), void* arg)
+	BAN::ErrorOr<long> Process::sys_thread_create(void (*entry)(void*), void* arg)
 	{
-		if (user_attr != nullptr)
-			dwarnln("TODO: ignoring thread attr");
-
 		LockGuard _(m_process_lock);
 
-		auto* new_thread = TRY(Thread::current().pthread_create(entry, arg));
+		auto* new_thread = TRY(Thread::current().thread_create(entry, arg));
 		MUST(m_threads.push_back(new_thread));
 		MUST(Processor::scheduler().add_thread(new_thread));
 
 		return new_thread->tid();
 	}
 
-	BAN::ErrorOr<long> Process::sys_pthread_exit(void* value)
+	BAN::ErrorOr<long> Process::sys_thread_exit(void* value)
 	{
-		LockGuard _(m_process_lock);
-
-		if (m_threads.size() == 1)
-			return sys_exit(0);
-
-		auto& thread = Thread::current();
-		if (!thread.is_detached())
 		{
-			TRY(m_exited_pthreads.emplace_back(thread.tid(), value));
-			m_pthread_exit_blocker.unblock();
+			LockGuard _(m_process_lock);
+
+			if (m_threads.size() == 1)
+				return sys_exit(0);
+
+			auto& thread = Thread::current();
+			if (!thread.is_detached())
+			{
+				TRY(m_exited_threads.emplace_back(thread.tid(), value));
+				m_thread_exit_blocker.unblock();
+			}
 		}
 
-		m_process_lock.unlock();
-		thread.on_exit();
+		Thread::current().on_exit();
 
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::ErrorOr<long> Process::sys_pthread_join(pthread_t tid, void** user_value)
+	BAN::ErrorOr<long> Process::sys_thread_join(pid_t tid, void** user_value)
 	{
 		LockGuard _(m_process_lock);
 
@@ -3456,12 +3453,12 @@ namespace Kernel
 		const auto check_thread =
 			[&]() -> BAN::Optional<void*>
 			{
-				for (size_t i = 0; i < m_exited_pthreads.size(); i++)
+				for (size_t i = 0; i < m_exited_threads.size(); i++)
 				{
-					if (m_exited_pthreads[i].thread != tid)
+					if (m_exited_threads[i].tid != tid)
 						continue;
-					void* ret = m_exited_pthreads[i].value;
-					m_exited_pthreads.remove(i);
+					void* ret = m_exited_threads[i].value;
+					m_exited_threads.remove(i);
 					return ret;
 				}
 
@@ -3494,16 +3491,16 @@ namespace Kernel
 					return BAN::Error::from_errno(EINVAL);
 			}
 
-			TRY(Thread::current().block_or_eintr_indefinite(m_pthread_exit_blocker, &m_process_lock));
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_exit_blocker, &m_process_lock));
 		}
 	}
 
-	BAN::ErrorOr<long> Process::sys_pthread_self()
+	BAN::ErrorOr<long> Process::sys_thread_getid()
 	{
 		return Thread::current().tid();
 	}
 
-	BAN::ErrorOr<long> Process::sys_pthread_kill(pthread_t tid, int signal)
+	BAN::ErrorOr<long> Process::sys_thread_kill(pid_t tid, int signal)
 	{
 		if (signal != 0 && (signal < _SIGMIN || signal > _SIGMAX))
 			return BAN::Error::from_errno(EINVAL);
@@ -3533,7 +3530,7 @@ namespace Kernel
 		return BAN::Error::from_errno(ESRCH);
 	}
 
-	BAN::ErrorOr<long> Process::sys_pthread_detach(pthread_t tid)
+	BAN::ErrorOr<long> Process::sys_thread_detach(pid_t tid)
 	{
 		LockGuard _(m_process_lock);
 
@@ -3544,7 +3541,7 @@ namespace Kernel
 			if (thread->is_detached())
 				return BAN::Error::from_errno(EINVAL);
 			thread->detach();
-			m_pthread_exit_blocker.unblock();
+			m_thread_exit_blocker.unblock();
 			return 0;
 		}
 

@@ -100,12 +100,12 @@ __BEGIN_DECLS
 	O(SYS_GET_FSBASE,		get_fsbase)		\
 	O(SYS_SET_GSBASE,		set_gsbase)		\
 	O(SYS_GET_GSBASE,		get_gsbase)		\
-	O(SYS_PTHREAD_CREATE,	pthread_create)	\
-	O(SYS_PTHREAD_EXIT,		pthread_exit)	\
-	O(SYS_PTHREAD_JOIN,		pthread_join)	\
-	O(SYS_PTHREAD_SELF,		pthread_self)	\
-	O(SYS_PTHREAD_KILL,		pthread_kill)	\
-	O(SYS_PTHREAD_DETACH,   pthread_detach) \
+	O(SYS_THREAD_CREATE,    thread_create)	\
+	O(SYS_THREAD_EXIT,      thread_exit)	\
+	O(SYS_THREAD_JOIN,      thread_join)	\
+	O(SYS_THREAD_GETID,     thread_getid)	\
+	O(SYS_THREAD_KILL,      thread_kill)	\
+	O(SYS_THREAD_DETACH,    thread_detach) \
 	O(SYS_EPOLL_CREATE1,	epoll_create1)	\
 	O(SYS_EPOLL_CTL,		epoll_ctl)		\
 	O(SYS_EPOLL_PWAIT2,		epoll_pwait2)	\
