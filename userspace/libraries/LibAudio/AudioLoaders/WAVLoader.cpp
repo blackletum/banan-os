@@ -105,17 +105,17 @@ namespace LibAudio
 	}
 
 	template<typename T>
-	static double read_sample(BAN::ConstByteSpan data)
+	static float read_sample(BAN::ConstByteSpan data)
 	{
 		if constexpr(BAN::is_same_v<float, T> || BAN::is_same_v<double, T>)
 			return data.as<const T>();
 		else if constexpr(BAN::is_signed_v<T>)
-			return data.as<const T>() / static_cast<double>(BAN::numeric_limits<T>::max());
+			return data.as<const T>() / static_cast<float>(BAN::numeric_limits<T>::max());
 		else
-			return data.as<const T>() / (BAN::numeric_limits<T>::max() / 2.0) - 1.0;
+			return data.as<const T>() / (BAN::numeric_limits<T>::max() / 2.0f) - 1.0f;
 	}
 
-	double WAVAudioLoader::get_sample()
+	float WAVAudioLoader::get_sample()
 	{
 		ASSERT(samples_remaining() > 0);
 

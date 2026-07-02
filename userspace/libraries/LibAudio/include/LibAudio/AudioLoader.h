@@ -19,7 +19,7 @@ namespace LibAudio
 		virtual uint32_t sample_rate() const = 0;
 		virtual uint32_t samples_remaining() const = 0;
 
-		virtual double get_sample() = 0;
+		virtual float get_sample() = 0;
 
 	protected:
 		AudioLoader() = default;

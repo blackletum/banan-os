@@ -24,7 +24,7 @@ namespace LibAudio
 		uint32_t sample_rate() const override { return m_sample_rate; }
 		uint32_t samples_remaining() const override { return m_total_samples - m_current_sample; }
 
-		double get_sample() override;
+		float get_sample() override;
 
 	private:
 		uint32_t m_channels { 0 };
