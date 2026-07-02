@@ -168,7 +168,7 @@ void		pthread_cleanup_push(void (*routine)(void*), void* arg);
 
 #define _pthread_equal(t1, t2) ((t1) == (t2))
 
-#define _pthread_self() (_get_uthread()->id)
+#define _pthread_self() (_get_uthread())
 
 #define _pthread_testcancel() do { \
 		struct uthread* uthread = _get_uthread(); \

@@ -41,7 +41,7 @@ void psignal(int signum, const char* message)
 
 int pthread_kill(pthread_t thread, int sig)
 {
-	if (syscall(SYS_THREAD_KILL, thread, sig) == -1)
+	if (syscall(SYS_THREAD_KILL, thread->id, sig) == -1)
 		return errno;
 	return 0;
 }

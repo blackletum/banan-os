@@ -7,10 +7,7 @@
 
 __BEGIN_DECLS
 
-#define __need_pid_t
-#include <sys/types.h>
-
-typedef pid_t pthread_t;
+typedef struct uthread* pthread_t;
 
 __END_DECLS
 

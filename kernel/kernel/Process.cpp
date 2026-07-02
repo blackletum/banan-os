@@ -431,52 +431,41 @@ namespace Kernel
 			O_EXEC | O_RDWR
 		));
 
-		BAN::Vector<uint8_t> temp_buffer;
-		TRY(temp_buffer.resize(BAN::Math::min<size_t>(master_size, PAGE_SIZE)));
-
 		size_t bytes_copied = 0;
 		while (bytes_copied < master_size)
 		{
-			const size_t to_copy = BAN::Math::min(master_size - bytes_copied, temp_buffer.size());
+			uint8_t buffer[PAGE_SIZE];
+			const size_t to_copy = BAN::Math::min(master_size - bytes_copied, sizeof(buffer));
 
 			const vaddr_t vaddr = master_addr + bytes_copied;
 			const paddr_t paddr = page_table.physical_address_of(vaddr & PAGE_ADDR_MASK);
 			PageTable::with_fast_page(paddr, [&] {
-				memcpy(temp_buffer.data(), PageTable::fast_page_as_ptr(vaddr % PAGE_SIZE), to_copy);
+				memcpy(buffer, PageTable::fast_page_as_ptr(vaddr % PAGE_SIZE), to_copy);
 			});
 
-			TRY(region->copy_data_to_region(bytes_copied, temp_buffer.data(), to_copy));
+			TRY(region->copy_data_to_region(bytes_copied, buffer, to_copy));
 			bytes_copied += to_copy;
 		}
 
-		auto uthread = TRY(BAN::UniqPtr<struct uthread>::create());
-		*uthread = {
-			.self = reinterpret_cast<struct uthread*>(region->vaddr() + master_size),
-			.master_tls_addr = reinterpret_cast<void*>(master_addr),
-			.master_tls_size = master_size,
-			.master_tls_module_count = 1,
-			.dynamic_tls = nullptr,
-			.cleanup_stack = nullptr,
-			.id = 0,
-			.errno_ = 0,
-			.cancel_type = 0,
-			.cancel_state = 0,
-			.canceled = 0,
-			.specific_keys = {},
-			.specific_values = {},
-			.dtv = { 0, region->vaddr() }
-		};
+		uthread uthread {};
+		uthread.self = reinterpret_cast<struct uthread*>(region->vaddr() + master_size);
+		uthread.master_tls_addr = reinterpret_cast<void*>(master_addr),
+		uthread.master_tls_size = master_size,
+		uthread.master_tls_module_count = 1;
+		uthread.dynamic_tls = nullptr;
+		uthread.dtv[0] = 0;
+		uthread.dtv[1] = region->vaddr();
 
 		TRY(region->copy_data_to_region(
 			master_size,
-			reinterpret_cast<const uint8_t*>(uthread.ptr()),
+			reinterpret_cast<const uint8_t*>(&uthread),
 			sizeof(struct uthread)
 		));
 
-		TLSResult result;
-		result.addr = region->vaddr() + master_size;;
-		result.region = BAN::move(region);
-		return result;
+		return TLSResult {
+			.region = BAN::move(region),
+			.addr   = region->vaddr() + master_size,
+		};
 	}
 
 	BAN::ErrorOr<void> Process::add_mapped_region(BAN::UniqPtr<MemoryRegion>&& region)

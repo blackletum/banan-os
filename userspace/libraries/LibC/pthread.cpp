@@ -18,7 +18,6 @@
 struct pthread_trampoline_info_t
 {
 	struct uthread* uthread;
-	bool detached;
 	void* (*start_routine)(void*);
 	void* arg;
 };
@@ -61,8 +60,10 @@ asm(
 
 extern "C" void _pthread_trampoline_cpp(void* arg)
 {
-	auto info = *reinterpret_cast<pthread_trampoline_info_t*>(arg);
+	auto info = *static_cast<pthread_trampoline_info_t*>(arg);
+
 	info.uthread->id = syscall(SYS_THREAD_GETID);
+
 #if defined(__x86_64__)
 	syscall(SYS_SET_FSBASE, info.uthread);
 #elif defined(__i686__)
@@ -70,10 +71,14 @@ extern "C" void _pthread_trampoline_cpp(void* arg)
 #else
 #error
 #endif
+
+	// NOTE: we have to get id and set TLS to for free to be able to use pthread_self
 	free(arg);
+
 	signal(SIGCANCEL, &_pthread_cancel_handler);
-	if (info.detached)
-		pthread_detach(info.uthread->id);
+	if (info.uthread->attr.detachstate == PTHREAD_CREATE_DETACHED)
+		pthread_detach(info.uthread);
+
 	pthread_exit(info.start_routine(info.arg));
 	ASSERT_NOT_REACHED();
 }
@@ -115,10 +120,10 @@ static void free_uthread(uthread* uthread)
 void pthread_cleanup_pop(int execute)
 {
 	uthread* uthread = _get_uthread();
-	ASSERT(uthread->cleanup_stack);
+	ASSERT(uthread->cleanup_funcs);
 
-	auto* cleanup = uthread->cleanup_stack;
-	uthread->cleanup_stack = cleanup->next;
+	auto* cleanup = uthread->cleanup_funcs;
+	uthread->cleanup_funcs = cleanup->next;
 
 	if (execute)
 		cleanup->routine(cleanup->arg);
@@ -135,9 +140,9 @@ void pthread_cleanup_push(void (*routine)(void*), void* arg)
 
 	cleanup->routine = routine;
 	cleanup->arg = arg;
-	cleanup->next = uthread->cleanup_stack;
+	cleanup->next = uthread->cleanup_funcs;
 
-	uthread->cleanup_stack = cleanup;
+	uthread->cleanup_funcs = cleanup;
 }
 
 static pthread_key_t s_pthread_key_current = 1;
@@ -197,9 +202,9 @@ void* pthread_getspecific(pthread_key_t key)
 		if (uthread->specific_keys[i] != key)
 		{
 			uthread->specific_keys[i] = key;
-			uthread->specific_values[i] = nullptr;
+			uthread->specific_vals[i] = nullptr;
 		}
-		ret = uthread->specific_values[i];
+		ret = uthread->specific_vals[i];
 		break;
 	}
 	pthread_spin_unlock(&s_pthread_key_lock);
@@ -220,7 +225,7 @@ int pthread_setspecific(pthread_key_t key, const void* value)
 			continue;
 		if (uthread->specific_keys[i] != key)
 			uthread->specific_keys[i] = key;
-		uthread->specific_values[i] = const_cast<void*>(value);
+		uthread->specific_vals[i] = const_cast<void*>(value);
 		ret = 0;
 		break;
 	}
@@ -375,11 +380,16 @@ int pthread_attr_getstacksize(const pthread_attr_t* __restrict attr, size_t* __r
 
 int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stacksize)
 {
+	if (stacksize < PTHREAD_STACK_MIN)
+		return EINVAL;
+	if (auto rem = stacksize % getpagesize())
+		stacksize += getpagesize() - rem;
+	attr->stackaddr = nullptr;
 	attr->stacksize = stacksize;
 	return 0;
 }
 
-int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __restrict attr, void* (*start_routine)(void*), void* __restrict arg)
+int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restrict attr, void* (*start_routine)(void*), void* __restrict arg)
 {
 	auto* info = static_cast<pthread_trampoline_info_t*>(malloc(sizeof(pthread_trampoline_info_t)));
 	if (info == nullptr)
@@ -387,12 +397,11 @@ int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __rest
 
 	*info = {
 		.uthread = nullptr,
-		.detached = attr ? (attr->detachstate == PTHREAD_CREATE_DETACHED) : false,
 		.start_routine = start_routine,
 		.arg = arg,
 	};
 
-	long syscall_ret = 0;
+	uthread* result = nullptr;
 
 	{
 		uthread* self = _get_uthread();
@@ -413,14 +422,15 @@ int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __rest
 			.master_tls_size = self->master_tls_size,
 			.master_tls_module_count = self->master_tls_module_count,
 			.dynamic_tls = self->dynamic_tls,
-			.cleanup_stack = nullptr,
 			.id = -1,
+			.attr = attr ? *attr : s_default_pthread_attr,
 			.errno_ = 0,
 			.cancel_type = PTHREAD_CANCEL_DEFERRED,
 			.cancel_state = PTHREAD_CANCEL_ENABLE,
 			.canceled = 0,
+			.cleanup_funcs = nullptr,
 			.specific_keys = {},
-			.specific_values = {},
+			.specific_vals = {},
 			.dtv = { self->dtv[0] }
 		};
 
@@ -430,14 +440,14 @@ int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __rest
 			uthread->dtv[i] = self->dtv[i] - self_addr + uthread_addr;
 
 		info->uthread = uthread;
+		result = uthread;
 	}
 
-	syscall_ret = syscall(SYS_THREAD_CREATE, _pthread_trampoline, info);
-	if (syscall_ret == -1)
+	if (syscall(SYS_THREAD_CREATE, _pthread_trampoline, info) == -1)
 		goto pthread_create_error;
 
-	if (thread_id)
-		*thread_id = syscall_ret;
+	if (thread)
+		*thread = result;
 	return 0;
 
 pthread_create_error:
@@ -450,13 +460,17 @@ pthread_create_error:
 
 int pthread_detach(pthread_t thread)
 {
-	return syscall(SYS_THREAD_DETACH, thread);
+	// FIXME: race if detached thread exits before assigning detachstate
+	if (syscall(SYS_THREAD_DETACH, thread->id) == -1)
+		return errno;
+	thread->attr.detachstate = PTHREAD_CREATE_DETACHED;
+	return 0;
 }
 
 void pthread_exit(void* value_ptr)
 {
 	uthread* uthread = _get_uthread();
-	while (uthread->cleanup_stack)
+	while (uthread->cleanup_funcs)
 		pthread_cleanup_pop(1);
 
 	for (size_t iteration = 0; iteration < PTHREAD_DESTRUCTOR_ITERATIONS; iteration++)
@@ -471,8 +485,8 @@ void pthread_exit(void* value_ptr)
 			if (s_pthread_key_map[i] && uthread->specific_keys[i] == s_pthread_key_map[i])
 			{
 				destructor = s_pthread_key_destructors[i];
-				value = uthread->specific_values[i];
-				uthread->specific_values[i] = nullptr;
+				value = uthread->specific_vals[i];
+				uthread->specific_vals[i] = nullptr;
 			}
 			pthread_spin_unlock(&s_pthread_key_lock);
 
@@ -485,18 +499,26 @@ void pthread_exit(void* value_ptr)
 			break;
 	}
 
-	free_uthread(uthread);
+	if (uthread->attr.detachstate == PTHREAD_CREATE_DETACHED)
+		free_uthread(uthread);
 	syscall(SYS_THREAD_EXIT, value_ptr);
 	ASSERT_NOT_REACHED();
 }
 
 int pthread_join(pthread_t thread, void** value_ptr)
 {
+	if (thread->attr.detachstate != PTHREAD_CREATE_JOINABLE)
+		return EINVAL;
+
 	do {
 		pthread_testcancel();
 		errno = 0;
-	} while (syscall(SYS_THREAD_JOIN, thread, value_ptr) == -1 && errno == EINTR);
-	return errno;
+	} while (syscall(SYS_THREAD_JOIN, thread->id, value_ptr) == -1 && errno == EINTR);
+
+	const int ret = errno;
+	if (ret == 0)
+		free_uthread(thread);
+	return ret;
 }
 
 int pthread_once(pthread_once_t* once_control, void (*init_routine)(void))
@@ -536,8 +558,8 @@ void _pthread_call_atfork(int state)
 	switch (state)
 	{
 		case _PTHREAD_ATFORK_PREPARE: list = s_atfork_prepare; break;
-		case _PTHREAD_ATFORK_PARENT:  list = s_atfork_parent; break;
-		case _PTHREAD_ATFORK_CHILD:   list = s_atfork_child; break;
+		case _PTHREAD_ATFORK_PARENT:  list = s_atfork_parent;  break;
+		case _PTHREAD_ATFORK_CHILD:   list = s_atfork_child;   break;
 		default:
 			ASSERT_NOT_REACHED();
 	}
@@ -802,7 +824,7 @@ int pthread_mutex_lock(pthread_mutex_t* mutex)
 
 int pthread_mutex_trylock(pthread_mutex_t* mutex)
 {
-	const uint32_t tid = pthread_self();
+	const uint32_t tid = pthread_self()->id;
 
 	switch (mutex->attr.type)
 	{
@@ -831,7 +853,7 @@ int pthread_mutex_timedlock(pthread_mutex_t* __restrict mutex, const struct time
 	if (const int ret = pthread_mutex_trylock(mutex); ret != EBUSY)
 		return ret;
 
-	const uint32_t tid = pthread_self();
+	const uint32_t tid = pthread_self()->id;
 
 	uint32_t expected = 0;
 	while (!BAN::atomic_compare_exchange(mutex->futex, expected, tid, BAN::memory_order_acquire))
@@ -854,7 +876,7 @@ int pthread_mutex_timedlock(pthread_mutex_t* __restrict mutex, const struct time
 
 int pthread_mutex_unlock(pthread_mutex_t* mutex)
 {
-	ASSERT(mutex->futex == static_cast<uint32_t>(pthread_self()));
+	ASSERT(mutex->futex == static_cast<uint32_t>(pthread_self()->id));
 
 	mutex->lock_depth--;
 	if (mutex->lock_depth == 0)

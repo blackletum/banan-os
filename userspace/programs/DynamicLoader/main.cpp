@@ -216,16 +216,16 @@ static _dynamic_tls_t* s_dynamic_tls = nullptr;
 
 static const char* s_ld_library_path = nullptr;
 
-static BAN::Atomic<pthread_t> s_global_locker = 0;
+static BAN::Atomic<pid_t> s_global_locker = 0;
 static uint32_t s_global_lock_depth = 0;
 
 constexpr uintptr_t SYM_NOT_FOUND = -1;
 
 static void lock_global_lock()
 {
-	const pthread_t tid = syscall(SYS_THREAD_GETID);
+	const pid_t tid = syscall(SYS_THREAD_GETID);
 
-	pthread_t expected = 0;
+	pid_t expected = 0;
 	while (!s_global_locker.compare_exchange(expected, tid))
 	{
 		if (expected == tid)
@@ -1349,25 +1349,21 @@ static void initialize_tls(MasterTLS master_tls)
 	memcpy(tls_addr, master_tls.addr, master_tls.size);
 
 	uthread& uthread = *reinterpret_cast<struct uthread*>(tls_addr + master_tls.size);
+	memset(&uthread, 0, sizeof(uthread));
 
-	// uthread is prepared in libc init, but some other stuff may be calling pthread functions
-	//   for example __cxa_guard_release calls pthread_cond_broadcast
-	uthread = {
-		.self = &uthread,
-		.master_tls_addr = master_tls.addr,
-		.master_tls_size = master_tls.size,
-		.master_tls_module_count = master_tls.module_count,
-		.dynamic_tls = s_dynamic_tls,
-		.cleanup_stack = nullptr,
-		.id = static_cast<pthread_t>(syscall(SYS_THREAD_GETID)),
-		.errno_ = 0,
-		.cancel_type = PTHREAD_CANCEL_DEFERRED,
-		.cancel_state = PTHREAD_CANCEL_ENABLE,
-		.canceled = false,
-		.specific_keys = {},
-		.specific_values = {},
-		.dtv = {},
-	};
+	uthread.self = &uthread;
+	uthread.master_tls_addr = master_tls.addr,
+	uthread.master_tls_size = master_tls.size,
+	uthread.master_tls_module_count = master_tls.module_count,
+	uthread.dynamic_tls = s_dynamic_tls,
+
+	// these are prepared in libc init, but some other stuff may be calling pthread functions
+	// for example __cxa_guard_release calls pthread_cond_broadcast
+	uthread.id = syscall(SYS_THREAD_GETID);
+	uthread.errno_ = 0;
+	uthread.cancel_type = PTHREAD_CANCEL_DEFERRED;
+	uthread.cancel_state = PTHREAD_CANCEL_ENABLE;
+	uthread.canceled = false;
 
 	uthread.dtv[0] = master_tls.module_count;
 	for (size_t i = 0; i < s_loaded_file_count; i++)

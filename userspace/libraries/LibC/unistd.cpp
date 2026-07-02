@@ -65,12 +65,12 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 #error
 #endif
 	{
-		self->cleanup_stack = nullptr;
 		self->id = syscall(SYS_THREAD_GETID);
 		self->errno_ = 0;
 		self->cancel_type = PTHREAD_CANCEL_DEFERRED;
 		self->cancel_state = PTHREAD_CANCEL_ENABLE;
 		self->canceled = false;
+		self->cleanup_funs = nullptr;
 	}
 	else
 	{
@@ -83,14 +83,14 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 			.master_tls_size = 0,
 			.master_tls_module_count = 1,
 			.dynamic_tls = nullptr,
-			.cleanup_stack = nullptr,
 			.id = static_cast<pthread_t>(syscall(SYS_THREAD_GETID)),
 			.errno_ = 0,
 			.cancel_type = PTHREAD_CANCEL_DEFERRED,
 			.cancel_state = PTHREAD_CANCEL_ENABLE,
 			.canceled = false,
+			.cleanup_funs = nullptr,
 			.specific_keys = {},
-			.specific_values = {},
+			.specific_vals = {},
 			.dtv = { 0 },
 		};
 
