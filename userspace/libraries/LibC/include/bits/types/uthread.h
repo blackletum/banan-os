@@ -49,6 +49,7 @@ struct uthread
 	pid_t id;
 	pthread_attr_t attr;
 	int errno_;
+	int libc_owns_stack;
 	int cancel_type;
 	int cancel_state;
 	volatile int canceled;

@@ -16,6 +16,7 @@ typedef struct
 	int schedpolicy;
 	int detachstate;
 	int scope;
+	void* stackaddr;
 	size_t stacksize;
 	size_t guardsize;
 } pthread_attr_t;

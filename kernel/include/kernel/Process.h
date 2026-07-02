@@ -209,7 +209,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_set_gsbase(void*);
 		BAN::ErrorOr<long> sys_get_gsbase();
 
-		BAN::ErrorOr<long> sys_thread_create(void (*entry)(void*), void* arg);
+		BAN::ErrorOr<long> sys_thread_create(void (*entry)(void*), void* arg, void* stack_base, size_t stack_size);
 		BAN::ErrorOr<long> sys_thread_exit(void* value);
 		BAN::ErrorOr<long> sys_thread_join(pid_t tid, void** value);
 		BAN::ErrorOr<long> sys_thread_getid();

@@ -3549,20 +3549,14 @@ namespace Kernel
 		return Thread::current().get_gsbase();
 	}
 
-	BAN::ErrorOr<long> Process::sys_thread_create(void (*entry)(void*), void* arg)
+	BAN::ErrorOr<long> Process::sys_thread_create(void (*entry)(void*), void* arg, void* stack_base, size_t stack_size)
 	{
-		auto userspace_stack = TRY(MemoryBackedRegion::create(
-			page_table(),
-			Thread::userspace_stack_size,
-			{ Thread::userspace_stack_base, USERSPACE_END },
-			MemoryRegion::Type::PRIVATE,
-			PageTable::UserSupervisor | PageTable::ReadWrite | PageTable::Present,
-			O_RDWR
-		));
+		const vaddr_t stack_vaddr = reinterpret_cast<vaddr_t>(stack_base);
+		if (stack_vaddr % PAGE_SIZE || stack_size % PAGE_SIZE)
+			return BAN::Error::from_errno(EINVAL);
 
-		const vaddr_t stack_vaddr = userspace_stack->vaddr();
-		const size_t stack_size   = userspace_stack->size();
-		TRY(add_mapped_region(BAN::move(userspace_stack)));
+		auto* memory_region = TRY(validate_and_pin_pointer_access(stack_base, stack_size, true));
+		BAN::ScopeGuard _0([memory_region] { if (memory_region) memory_region->unpin(); });
 
 		const vaddr_t initial_stack_pointer = stack_vaddr + stack_size - sizeof(void*);
 		*reinterpret_cast<void**>(initial_stack_pointer) = arg;
@@ -3577,7 +3571,7 @@ namespace Kernel
 		));
 		thread->m_signal_block_mask = Thread::current().m_signal_block_mask;
 
-		LockGuard _(m_process_lock);
+		LockGuard _1(m_process_lock);
 
 		TRY(m_threads.push_back(thread));
 		if (auto ret = Processor::scheduler().add_thread(thread); ret.is_error())

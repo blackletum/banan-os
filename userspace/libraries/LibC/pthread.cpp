@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/auxv.h>
 #include <sys/futex.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
@@ -36,12 +37,18 @@ static void _init_pthread()
 	uthread->id              = syscall(SYS_THREAD_GETID);
 	uthread->attr            = s_default_pthread_attr;
 	uthread->errno_          = 0;
+	uthread->libc_owns_stack = false;
 	uthread->cancel_type     = PTHREAD_CANCEL_DEFERRED;
 	uthread->cancel_state    = PTHREAD_CANCEL_ENABLE;
 	uthread->canceled        = false;
 	uthread->cleanup_funcs   = nullptr;
 	memset(uthread->specific_keys, 0, sizeof(uthread->specific_keys));
 	memset(uthread->specific_vals, 0, sizeof(uthread->specific_vals));
+
+	if (auto value = getauxval(AT_STACK_BASE))
+		uthread->attr.stackaddr = reinterpret_cast<void*>(value);
+	if (auto value = getauxval(AT_STACK_SIZE))
+		uthread->attr.stacksize = value;
 
 	signal(SIGCANCEL, &_pthread_cancel_handler);
 }
@@ -119,6 +126,9 @@ static void free_uthread(uthread* uthread)
 
 		munmap(reinterpret_cast<void*>(uthread->dtv[i]), size);
 	}
+
+	if (uthread->libc_owns_stack)
+		munmap(static_cast<uint8_t*>(uthread->attr.stackaddr) - uthread->attr.guardsize, uthread->attr.guardsize + uthread->attr.stacksize);
 
 	uint8_t* tls_addr = reinterpret_cast<uint8_t*>(uthread) - uthread->master_tls_size;
 	const size_t tls_size = uthread->master_tls_size + sizeof(struct uthread);
@@ -288,6 +298,8 @@ int pthread_attr_getguardsize(const pthread_attr_t* __restrict attr, size_t* __r
 
 int pthread_attr_setguardsize(pthread_attr_t* attr, size_t guardsize)
 {
+	if (auto rem = guardsize % getpagesize())
+		guardsize += getpagesize() - rem;
 	attr->guardsize = guardsize;
 	return 0;
 }
@@ -364,20 +376,22 @@ int pthread_attr_setscope(pthread_attr_t* attr, int contentionscope)
 
 int pthread_attr_getstack(const pthread_attr_t* __restrict attr, void** __restrict stackaddr, size_t* __restrict stacksize)
 {
-	(void)attr;
-	(void)stackaddr;
-	(void)stacksize;
-	dwarnln("TODO: pthread_attr_getstack");
-	return ENOTSUP;
+	*stackaddr = attr->stackaddr;
+	*stacksize = attr->stacksize;
+	return 0;
 }
 
 int pthread_attr_setstack(pthread_attr_t* attr, void* stackaddr, size_t stacksize)
 {
-	(void)attr;
-	(void)stackaddr;
-	(void)stacksize;
-	dwarnln("TODO: pthread_attr_setstack");
-	return ENOTSUP;
+	if (stacksize < PTHREAD_STACK_MIN)
+		return EINVAL;
+	if (reinterpret_cast<uintptr_t>(stackaddr) % getpagesize())
+		return EINVAL;
+	if (stacksize % getpagesize())
+		return EINVAL;
+	attr->stackaddr = stackaddr;
+	attr->stacksize = stacksize;
+	return 0;
 }
 
 int pthread_attr_getstacksize(const pthread_attr_t* __restrict attr, size_t* __restrict stacksize)
@@ -433,6 +447,7 @@ int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restric
 			.id = -1,
 			.attr = attr ? *attr : s_default_pthread_attr,
 			.errno_ = 0,
+			.libc_owns_stack = false,
 			.cancel_type = PTHREAD_CANCEL_DEFERRED,
 			.cancel_state = PTHREAD_CANCEL_ENABLE,
 			.canceled = 0,
@@ -441,6 +456,21 @@ int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restric
 			.specific_vals = {},
 			.dtv = { self->dtv[0] }
 		};
+
+		if (uthread->attr.stackaddr == nullptr)
+		{
+			ASSERT(uthread->attr.stacksize % getpagesize() == 0);
+			ASSERT(uthread->attr.guardsize % getpagesize() == 0);
+
+			void* stack_addr = mmap(nullptr, uthread->attr.guardsize + uthread->attr.stacksize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+			if (stack_addr == nullptr)
+				goto pthread_create_error;
+			uthread->attr.stackaddr = static_cast<uint8_t*>(stack_addr) + uthread->attr.guardsize;
+			uthread->libc_owns_stack = true;
+
+			if (uthread->attr.guardsize != 0 && mprotect(stack_addr, uthread->attr.guardsize, PROT_NONE) == -1)
+				goto pthread_create_error;
+		}
 
 		const uintptr_t self_addr = reinterpret_cast<uintptr_t>(self);
 		const uintptr_t uthread_addr = reinterpret_cast<uintptr_t>(uthread);
@@ -451,7 +481,7 @@ int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restric
 		result = uthread;
 	}
 
-	if (syscall(SYS_THREAD_CREATE, _pthread_trampoline, info) == -1)
+	if (syscall(SYS_THREAD_CREATE, _pthread_trampoline, info, info->uthread->attr.stackaddr, info->uthread->attr.stacksize) == -1)
 		goto pthread_create_error;
 
 	if (thread)
