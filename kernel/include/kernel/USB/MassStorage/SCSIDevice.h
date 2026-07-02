@@ -33,7 +33,7 @@ namespace Kernel
 		const uint64_t m_block_count;
 		const uint32_t m_block_size;
 
-		const char m_name[4];
+		char m_name[4];
 
 		friend class BAN::RefPtr<USBSCSIDevice>;
 	};
