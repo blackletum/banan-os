@@ -228,7 +228,7 @@ namespace Kernel
 
 		vaddr_t shared_page_vaddr() const { return m_shared_page_vaddr; }
 
-		PageTable& page_table() { return m_page_table ? *m_page_table : PageTable::kernel(); }
+		PageTable& page_table() { return *m_page_table; }
 
 		size_t proc_meminfo(off_t offset, BAN::ByteSpan) const;
 		size_t proc_cmdline(off_t offset, BAN::ByteSpan) const;
