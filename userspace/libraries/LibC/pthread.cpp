@@ -99,7 +99,7 @@ extern "C" void _pthread_trampoline_cpp(void* arg)
 {
 	auto info = *static_cast<pthread_trampoline_info_t*>(arg);
 
-	info.uthread->id = syscall(SYS_THREAD_GETID);
+	BAN::atomic_store(info.uthread->id, syscall(SYS_THREAD_GETID));
 
 #if defined(__x86_64__)
 	syscall(SYS_SET_FSBASE, info.uthread);
@@ -499,6 +499,10 @@ int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restric
 
 	if (syscall(SYS_THREAD_CREATE, _pthread_trampoline, info, info->uthread->attr.stackaddr, info->uthread->attr.stacksize) == -1)
 		goto pthread_create_error;
+
+	// wait for the thread to initialize its id
+	while (BAN::atomic_load(result->id) == -1)
+		sched_yield();
 
 	if (thread)
 		*thread = result;
