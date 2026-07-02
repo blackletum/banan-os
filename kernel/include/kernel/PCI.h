@@ -4,7 +4,6 @@
 #include <BAN/Vector.h>
 #include <kernel/ACPI/AML/Node.h>
 #include <kernel/Memory/Types.h>
-#include <kernel/Storage/StorageController.h>
 
 #include <sys/types.h>
 

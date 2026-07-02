@@ -16,12 +16,12 @@ namespace Kernel
 		return minor++;
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<StorageController>> NVMeController::create(PCI::Device& pci_device)
+	BAN::ErrorOr<BAN::RefPtr<NVMeController>> NVMeController::create(PCI::Device& pci_device)
 	{
 		auto* controller_ptr = new NVMeController(pci_device);
 		if (controller_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		auto controller = BAN::RefPtr<StorageController>::adopt(controller_ptr);
+		auto controller = BAN::RefPtr<NVMeController>::adopt(controller_ptr);
 		TRY(controller->initialize());
 		return controller;
 	}
@@ -114,8 +114,6 @@ namespace Kernel
 		TRY(identify_namespaces());
 
 		DevFileSystem::get().add_device(this);
-
-		StorageController::ref();
 
 		return {};
 	}

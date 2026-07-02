@@ -9,29 +9,12 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::RefPtr<StorageController>> ATAController::create(PCI::Device& pci_device)
+	BAN::ErrorOr<BAN::RefPtr<ATAController>> ATAController::create(PCI::Device& pci_device)
 	{
-		StorageController* controller_ptr = nullptr;
-
-		switch (pci_device.subclass())
-		{
-			case 0x01:
-				controller_ptr = new ATAController(pci_device);
-				break;
-			case 0x05:
-				dwarnln("unsupported DMA ATA Controller");
-				return BAN::Error::from_errno(ENOTSUP);
-			case 0x06:
-				controller_ptr = new AHCIController(pci_device);
-				break;
-			default:
-				ASSERT_NOT_REACHED();
-		}
-
+		auto* controller_ptr = new ATAController(pci_device);
 		if (controller_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-
-		auto controller = BAN::RefPtr<StorageController>::adopt(controller_ptr);
+		auto controller = BAN::RefPtr<ATAController>::adopt(controller_ptr);
 		TRY(controller->initialize());
 		return controller;
 	}

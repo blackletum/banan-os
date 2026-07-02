@@ -56,8 +56,6 @@ namespace Kernel
 
 		// Non-owning pointers
 		BAN::Vector<ATADevice*> m_devices;
-
-		friend class ATAController;
 	};
 
 }

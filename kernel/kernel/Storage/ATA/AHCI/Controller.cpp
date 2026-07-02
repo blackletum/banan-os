@@ -7,6 +7,16 @@
 namespace Kernel
 {
 
+	BAN::ErrorOr<BAN::RefPtr<AHCIController>> AHCIController::create(PCI::Device& pci_device)
+	{
+		auto* controller_ptr = new AHCIController(pci_device);
+		if (controller_ptr == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		auto controller = BAN::RefPtr<AHCIController>::adopt(controller_ptr);
+		TRY(controller->initialize());
+		return controller;
+	}
+
 	BAN::ErrorOr<void> AHCIController::initialize()
 	{
 		m_abar = TRY(m_pci_device.allocate_bar_region(5));

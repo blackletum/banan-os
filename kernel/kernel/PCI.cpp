@@ -235,10 +235,12 @@ namespace Kernel::PCI
 						switch (pci_device.subclass())
 						{
 							case 0x01:
-							case 0x05:
-							case 0x06:
 								if (auto res = ATAController::create(pci_device); res.is_error())
 									dprintln("ATA: {}", res.error());
+								break;
+							case 0x06:
+								if (auto res = AHCIController::create(pci_device); res.is_error())
+									dprintln("AHCI: {}", res.error());
 								break;
 							case 0x08:
 								if (auto res = NVMeController::create(pci_device); res.is_error())

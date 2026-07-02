@@ -10,13 +10,13 @@
 namespace Kernel
 {
 
-	class NVMeController final : public StorageController, public CharacterDevice
+	class NVMeController final : public CharacterDevice
 	{
 		BAN_NON_COPYABLE(NVMeController);
 		BAN_NON_MOVABLE(NVMeController);
 
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<StorageController>> create(PCI::Device&);
+		static BAN::ErrorOr<BAN::RefPtr<NVMeController>> create(PCI::Device&);
 
 		NVMeQueue& io_queue() { return *m_io_queue; }
 
@@ -30,7 +30,7 @@ namespace Kernel
 
 	private:
 		NVMeController(PCI::Device& pci_device);
-		virtual BAN::ErrorOr<void> initialize() override;
+		BAN::ErrorOr<void> initialize();
 
 		BAN::ErrorOr<void> identify_controller();
 		BAN::ErrorOr<void> identify_namespaces();

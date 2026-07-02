@@ -10,12 +10,14 @@
 namespace Kernel
 {
 
-	class AHCIController final : public StorageController, public Interruptable
+	class AHCIController final : public BAN::RefCounted<AHCIController>, public Interruptable
 	{
 		BAN_NON_COPYABLE(AHCIController);
 		BAN_NON_MOVABLE(AHCIController);
 
 	public:
+		static BAN::ErrorOr<BAN::RefPtr<AHCIController>> create(PCI::Device&);
+
 		~AHCIController();
 
 		virtual void handle_irq() override;
@@ -27,6 +29,7 @@ namespace Kernel
 			: m_pci_device(pci_device)
 		{ }
 		BAN::ErrorOr<void> initialize();
+
 		BAN::Optional<AHCIPortType> check_port_type(volatile HBAPortMemorySpace&);
 
 	private:
