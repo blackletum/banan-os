@@ -18,12 +18,6 @@ namespace Kernel
 	static_assert(SYS_SIGPROCMASK == 78, "this is hard coded in arch/*/Signal.S");
 	static_assert(SIG_SETMASK     ==  3, "this is hard coded in arch/*/Signal.S");
 
-#if ARCH(x86_64)
-	static constexpr vaddr_t s_user_stack_addr_start = 0x0000700000000000;
-#elif ARCH(i686)
-	static constexpr vaddr_t s_user_stack_addr_start = 0xB0000000;
-#endif
-
 	extern "C" [[noreturn]] void start_kernel_thread();
 	extern "C" [[noreturn]] void start_userspace_thread();
 
@@ -198,7 +192,7 @@ namespace Kernel
 		return thread;
 	}
 
-	BAN::ErrorOr<Thread*> Thread::create_userspace(Process* process, PageTable& page_table)
+	BAN::ErrorOr<Thread*> Thread::create_userspace(Process* process, PageTable& page_table, vaddr_t userspace_stack_vaddr, size_t userspace_stack_size, vaddr_t entry_point, vaddr_t stack_pointer)
 	{
 		ASSERT(process);
 
@@ -212,22 +206,32 @@ namespace Kernel
 
 		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
 			page_table,
-			{ s_user_stack_addr_start, USERSPACE_END },
+			{ userspace_stack_base, USERSPACE_END },
 			kernel_stack_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
 		));
 
-		auto userspace_stack = TRY(MemoryBackedRegion::create(
-			page_table,
-			userspace_stack_size,
-			{ s_user_stack_addr_start, USERSPACE_END },
-			MemoryRegion::Type::PRIVATE,
-			PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			O_RDWR
-		));
-		thread->m_userspace_stack = userspace_stack.ptr();
-		TRY(process->add_mapped_region(BAN::move(userspace_stack)));
+		thread->m_userspace_stack_vaddr = userspace_stack_vaddr;
+		thread->m_userspace_stack_size  = userspace_stack_size;
+
+		// Initialize stack for returning
+		PageTable::with_fast_page(thread->kernel_stack().paddr_of(thread->kernel_stack_top() - PAGE_SIZE), [=] {
+			uintptr_t cur_sp = PageTable::fast_page() + PAGE_SIZE;
+			write_to_stack(cur_sp, 0x20 | 3);
+			write_to_stack(cur_sp, stack_pointer);
+			write_to_stack(cur_sp, 0x202);
+#if ARCH(x86_64)
+			write_to_stack(cur_sp, 0x28 | 3);
+#elif ARCH(i686)
+			write_to_stack(cur_sp, 0x18 | 3);
+#endif
+			write_to_stack(cur_sp, entry_point);
+		});
+
+		thread->m_yield_registers = {};
+		thread->m_yield_registers.ip = reinterpret_cast<vaddr_t>(start_userspace_thread);
+		thread->m_yield_registers.sp = thread->kernel_stack_top() - 5 * sizeof(uintptr_t);
 
 		thread_deleter.disable();
 
@@ -311,26 +315,6 @@ namespace Kernel
 		Processor::gdt().set_cpu_index(Processor::current_index());
 	}
 
-	BAN::ErrorOr<Thread*> Thread::thread_create(entry_t entry, void* arg)
-	{
-		auto* thread = TRY(create_userspace(m_process, m_process->page_table()));
-
-		if (Processor::get_current_sse_thread() == this)
-			save_sse();
-		memcpy(thread->m_sse_storage, m_sse_storage, sizeof(m_sse_storage));
-
-		TRY(thread->userspace_stack().copy_data_to_region(
-			thread->m_userspace_stack->size() - sizeof(void*),
-			reinterpret_cast<const uint8_t*>(&arg),
-			sizeof(void*)
-		));
-
-		const vaddr_t entry_addr = reinterpret_cast<vaddr_t>(entry);
-		thread->setup_exec(entry_addr, thread->userspace_stack().vaddr() + thread->userspace_stack().size() - sizeof(void*));
-
-		return thread;
-	}
-
 	BAN::ErrorOr<Thread*> Thread::clone(Process* new_process, uintptr_t sp, uintptr_t ip)
 	{
 		ASSERT(m_is_userspace);
@@ -345,7 +329,7 @@ namespace Kernel
 
 		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
 			new_process->page_table(),
-			{ s_user_stack_addr_start, USERSPACE_END },
+			{ userspace_stack_base, USERSPACE_END },
 			kernel_stack_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
@@ -362,9 +346,8 @@ namespace Kernel
 			);
 		});
 
-		const auto stack_index = new_process->find_mapped_region(m_userspace_stack->vaddr());
-		thread->m_userspace_stack = static_cast<MemoryBackedRegion*>(new_process->m_mapped_regions[stack_index].ptr());
-		ASSERT(thread->m_userspace_stack->vaddr() == m_userspace_stack->vaddr());
+		thread->m_userspace_stack_vaddr = m_userspace_stack_vaddr;
+		thread->m_userspace_stack_size  = m_userspace_stack_size;
 
 		thread->m_fsbase = m_fsbase;
 		thread->m_gsbase = m_gsbase;
@@ -385,151 +368,23 @@ namespace Kernel
 		return thread;
 	}
 
-	BAN::ErrorOr<void> Thread::initialize_userspace(vaddr_t entry, BAN::Span<BAN::String> argv, BAN::Span<BAN::String> envp, BAN::Span<LibELF::AuxiliaryVector> auxv)
-	{
-		// System V ABI: Initial process stack
-
-		ASSERT(m_is_userspace);
-		ASSERT(m_userspace_stack);
-
-		size_t needed_size = 0;
-
-		// argc
-		needed_size += sizeof(uintptr_t);
-
-		// argv
-		needed_size += (argv.size() + 1) * sizeof(uintptr_t);
-		for (auto arg : argv)
-			needed_size += arg.size() + 1;
-
-		// envp
-		needed_size += (envp.size() + 1) * sizeof(uintptr_t);
-		for (auto env : envp)
-			needed_size += env.size() + 1;
-
-		// auxv
-		needed_size += auxv.size() * sizeof(LibELF::AuxiliaryVector);
-
-		if (auto rem = needed_size % alignof(char*))
-			needed_size += alignof(char*) - rem;
-
-		if (needed_size > m_userspace_stack->size())
-			return BAN::Error::from_errno(ENOBUFS);
-
-		vaddr_t vaddr = userspace_stack().vaddr() + userspace_stack().size() - needed_size;
-
-		const size_t page_count = BAN::Math::div_round_up<size_t>(needed_size, PAGE_SIZE);
-		for (size_t i = 0; i < page_count; i++)
-			TRY(m_userspace_stack->allocate_page_containing(vaddr + i * PAGE_SIZE, true));
-
-		const auto stack_copy_buf =
-			[this](BAN::ConstByteSpan buffer, vaddr_t vaddr) -> void
-			{
-				ASSERT(vaddr >= m_userspace_stack->vaddr());
-				ASSERT(vaddr + buffer.size() <= m_userspace_stack->vaddr() + m_userspace_stack->size());
-				MUST(m_userspace_stack->copy_data_to_region(vaddr - m_userspace_stack->vaddr(), buffer.data(), buffer.size()));
-			};
-
-		const auto stack_push_buf =
-			[&stack_copy_buf, &vaddr](BAN::ConstByteSpan buffer) -> void
-			{
-				stack_copy_buf(buffer, vaddr);
-				vaddr += buffer.size();
-			};
-
-		const auto stack_push_uint =
-			[&stack_push_buf](uintptr_t value) -> void
-			{
-				stack_push_buf(BAN::ConstByteSpan::from(value));
-			};
-
-		const auto stack_push_str =
-			[&stack_push_buf](BAN::StringView string) -> void
-			{
-				const uint8_t* string_u8 = reinterpret_cast<const uint8_t*>(string.data());
-				stack_push_buf(BAN::ConstByteSpan(string_u8, string.size() + 1));
-			};
-
-		// argc
-		stack_push_uint(argv.size());
-
-		// argv
-		const vaddr_t argv_vaddr = vaddr;
-		vaddr += argv.size() * sizeof(uintptr_t);
-		stack_push_uint(0);
-
-		// envp
-		const vaddr_t envp_vaddr = vaddr;
-		vaddr += envp.size() * sizeof(uintptr_t);
-		stack_push_uint(0);
-
-		// auxv
-		for (auto aux : auxv)
-			stack_push_buf(BAN::ConstByteSpan::from(aux));
-
-		// information
-		for (size_t i = 0; i < argv.size(); i++)
-		{
-			stack_copy_buf(BAN::ConstByteSpan::from(vaddr), argv_vaddr + i * sizeof(uintptr_t));
-			stack_push_str(argv[i]);
-		}
-		for (size_t i = 0; i < envp.size(); i++)
-		{
-			stack_copy_buf(BAN::ConstByteSpan::from(vaddr), envp_vaddr + i * sizeof(uintptr_t));
-			stack_push_str(envp[i]);
-		}
-
-		setup_exec(entry, m_userspace_stack->vaddr() + m_userspace_stack->size() - needed_size);
-
-		return {};
-	}
-
-	void Thread::setup_exec(vaddr_t ip, vaddr_t sp)
-	{
-		ASSERT(is_userspace());
-		m_state = State::NotStarted;
-
-		// Signal mask is inherited
-
-		// Initialize stack for returning
-		PageTable::with_fast_page(kernel_stack().paddr_of(kernel_stack_top() - PAGE_SIZE), [=] {
-			uintptr_t cur_sp = PageTable::fast_page() + PAGE_SIZE;
-			write_to_stack(cur_sp, 0x20 | 3);
-			write_to_stack(cur_sp, sp);
-			write_to_stack(cur_sp, 0x202);
-#if ARCH(x86_64)
-			write_to_stack(cur_sp, 0x28 | 3);
-#elif ARCH(i686)
-			write_to_stack(cur_sp, 0x18 | 3);
-#endif
-			write_to_stack(cur_sp, ip);
-		});
-
-		m_yield_registers = {};
-		m_yield_registers.ip = reinterpret_cast<vaddr_t>(start_userspace_thread);
-		m_yield_registers.sp = kernel_stack_top() - 5 * sizeof(uintptr_t);
-	}
-
 	void Thread::setup_process_cleanup()
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
+		static entry_t entry = [](void* process_ptr) {
+			auto* thread = &Thread::current();
+			auto* process = static_cast<Process*>(process_ptr);
+			ASSERT(thread->m_process == process);
+
+			process->cleanup_function(thread);
+
+			thread->m_delete_process = true;
+
+			// will call on thread exit after return
+		};
+
 		m_state = State::NotStarted;
-		static entry_t entry(
-			[](void* process_ptr)
-			{
-				auto* thread = &Thread::current();
-				auto* process = static_cast<Process*>(process_ptr);
-
-				ASSERT(thread->m_process == process);
-
-				process->cleanup_function(thread);
-
-				thread->m_delete_process = true;
-
-				// will call on thread exit after return
-			}
-		);
 
 		m_signal_pending_mask = 0;
 		m_signal_block_mask = ~0ull;

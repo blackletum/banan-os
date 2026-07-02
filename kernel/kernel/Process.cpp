@@ -97,25 +97,19 @@ namespace Kernel
 		return process;
 	}
 
-	void Process::register_to_scheduler()
-	{
-		// FIXME: Allow failing...
-		{
-			SpinLockGuard _(s_process_lock);
-			MUST(s_processes.push_back(this));
-		}
-		for (auto* thread : m_threads)
-			MUST(Processor::scheduler().add_thread(thread));
-	}
-
 	BAN::ErrorOr<Process*> Process::create_userspace(const Credentials& credentials, BAN::StringView path, BAN::Span<BAN::StringView> arguments)
 	{
 		auto* process = create_process(credentials, 0);
+		BAN::ScopeGuard process_deleter([process] {
+			process->m_mapped_regions.clear();
+			process->m_page_table.clear();
+			delete process;
+		});
 
 		process->m_working_directory = VirtualFileSystem::get().root_file();
 		process->m_root_file         = VirtualFileSystem::get().root_file();
 
-		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));
+		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(TRY(PageTable::create_userspace()));
 
 		TRY(process->m_cmdline.emplace_back());
 		TRY(process->m_cmdline.back().append(path));
@@ -125,17 +119,12 @@ namespace Kernel
 			TRY(process->m_cmdline.back().append(argument));
 		}
 
-		auto* thread = TRY(Thread::create_userspace(process, process->page_table()));
-		BAN::ScopeGuard thread_deleter([thread] { delete thread; });
-
-		LockGuard _(process->m_process_lock);
-
 		auto executable_file = TRY(process->find_file(AT_FDCWD, path.data(), O_EXEC));
 		auto executable_inode = executable_file.inode;
 
 		auto executable = TRY(ELF::load_from_inode(process->m_root_file.inode, executable_inode, process->m_credentials, process->page_table()));
 		for (auto& region : executable.regions)
-			TRY(process->add_mapped_region(BAN::move(region)));
+			TRY(process->m_mapped_regions.push_back(BAN::move(region)));
 		executable.regions.clear();
 
 		TRY(process->m_executable.append(executable_file.canonical_path));
@@ -144,6 +133,24 @@ namespace Kernel
 			process->m_credentials.set_euid(executable_inode->uid());
 		if (executable_inode->mode().mode & +Inode::Mode::ISGID)
 			process->m_credentials.set_egid(executable_inode->gid());
+
+		process->m_shared_page_vaddr = process->page_table().reserve_free_page(executable.interp_base.value_or(0x400000), USERSPACE_END);
+		if (process->m_shared_page_vaddr == 0)
+			return BAN::Error::from_errno(ENOMEM);
+		process->page_table().map_page_at(
+			Processor::shared_page_paddr(),
+			process->m_shared_page_vaddr,
+			PageTable::UserSupervisor | PageTable::Present
+		);
+
+		auto userspace_stack = TRY(MemoryBackedRegion::create(
+			process->page_table(),
+			Thread::userspace_stack_size,
+			{ Thread::userspace_stack_base, USERSPACE_END },
+			MemoryRegion::Type::PRIVATE,
+			PageTable::UserSupervisor | PageTable::ReadWrite | PageTable::Present,
+			O_RDWR
+		));
 
 		BAN::Vector<LibELF::AuxiliaryVector> auxiliary_vector;
 		TRY(auxiliary_vector.reserve(5 + 2 * executable.interp_base.has_value()));
@@ -161,15 +168,6 @@ namespace Kernel
 			}));
 		}
 
-		process->m_shared_page_vaddr = process->page_table().reserve_free_page(executable.interp_base.value_or(0x400000), USERSPACE_END);
-		if (process->m_shared_page_vaddr == 0)
-			return BAN::Error::from_errno(ENOMEM);
-		process->page_table().map_page_at(
-			Processor::shared_page_paddr(),
-			process->m_shared_page_vaddr,
-			PageTable::UserSupervisor | PageTable::Present
-		);
-
 		TRY(auxiliary_vector.push_back({
 			.a_type = LibELF::AT_PAGESZ,
 			.a_un = { .a_val = PAGE_SIZE },
@@ -182,12 +180,12 @@ namespace Kernel
 
 		TRY(auxiliary_vector.push_back({
 			.a_type = LibELF::AT_STACK_BASE,
-			.a_un = { .a_ptr = reinterpret_cast<void*>(thread->userspace_stack().vaddr()) },
+			.a_un = { .a_ptr = reinterpret_cast<void*>(userspace_stack->vaddr()) },
 		}));
 
 		TRY(auxiliary_vector.push_back({
 			.a_type = LibELF::AT_STACK_SIZE,
-			.a_un = { .a_ptr = reinterpret_cast<void*>(thread->userspace_stack().size()) },
+			.a_un = { .a_ptr = reinterpret_cast<void*>(userspace_stack->size()) },
 		}));
 
 		TRY(auxiliary_vector.push_back({
@@ -195,20 +193,39 @@ namespace Kernel
 			.a_un = { .a_val = 0 },
 		}));
 
-		BAN::Optional<vaddr_t> tls_addr;
-		if (executable.master_tls.has_value())
-		{
-			auto tls_result = TRY(process->initialize_thread_local_storage(process->page_table(), *executable.master_tls));
-			TRY(process->add_mapped_region(BAN::move(tls_result.region)));
-			tls_addr = tls_result.addr;
-		}
-
-		TRY(thread->initialize_userspace(
-			executable.entry_point,
+		const vaddr_t initial_stack_pointer = TRY(process->setup_initial_process_stack(
+			*userspace_stack,
 			process->m_cmdline.span(),
 			process->m_environ.span(),
 			auxiliary_vector.span()
 		));
+
+		const vaddr_t userspace_stack_vaddr = userspace_stack->vaddr();
+		const vaddr_t userspace_stack_size  = userspace_stack->size();
+		TRY(process->m_mapped_regions.push_back(BAN::move(userspace_stack)));
+
+		BAN::Optional<vaddr_t> tls_addr;
+		if (executable.master_tls.has_value())
+		{
+			auto tls_result = TRY(process->initialize_thread_local_storage(process->page_table(), *executable.master_tls));
+			TRY(process->m_mapped_regions.push_back(BAN::move(tls_result.region)));
+			tls_addr = tls_result.addr;
+		}
+
+		BAN::sort::sort(process->m_mapped_regions.begin(), process->m_mapped_regions.end(), [](const auto& a, const auto& b) {
+			return a->vaddr() < b->vaddr();
+		});
+
+		auto* thread = TRY(Thread::create_userspace(
+			process,
+			process->page_table(),
+			userspace_stack_vaddr,
+			userspace_stack_size,
+			executable.entry_point,
+			initial_stack_pointer
+		));
+		BAN::ScopeGuard thread_deleter([thread] { delete thread; });
+
 		if (tls_addr.has_value())
 		{
 #if ARCH(x86_64)
@@ -220,10 +237,116 @@ namespace Kernel
 #endif
 		}
 
+		// NOTE: make sure the last two `MUST`s don't fail
+		TRY(process->m_threads.reserve(1));
+		TRY(Processor::scheduler().bind_thread_to_processor(thread, Processor::current_id()));
+
+		{
+			SpinLockGuard _(s_process_lock);
+			TRY(s_processes.push_back(process));
+		}
+
+		MUST(process->m_threads.push_back(thread));
+		MUST(Processor::scheduler().add_thread(thread));
+
+		process_deleter.disable();
 		thread_deleter.disable();
-		process->add_thread(thread);
-		process->register_to_scheduler();
+
 		return process;
+	}
+
+	BAN::ErrorOr<vaddr_t> Process::setup_initial_process_stack(MemoryBackedRegion& stack_region, BAN::Span<BAN::String> argv, BAN::Span<BAN::String> envp, BAN::Span<LibELF::AuxiliaryVector> auxv)
+	{
+		// System V ABI: Initial process stack
+
+		size_t needed_size = 0;
+
+		// argc
+		needed_size += sizeof(uintptr_t);
+
+		// argv
+		needed_size += (argv.size() + 1) * sizeof(uintptr_t);
+		for (auto arg : argv)
+			needed_size += arg.size() + 1;
+
+		// envp
+		needed_size += (envp.size() + 1) * sizeof(uintptr_t);
+		for (auto env : envp)
+			needed_size += env.size() + 1;
+
+		// auxv
+		needed_size += auxv.size() * sizeof(LibELF::AuxiliaryVector);
+
+		if (auto rem = needed_size % alignof(char*))
+			needed_size += alignof(char*) - rem;
+
+		if (needed_size > stack_region.size())
+			return BAN::Error::from_errno(ENOBUFS);
+
+		vaddr_t vaddr = stack_region.vaddr() + stack_region.size() - needed_size;
+
+		const size_t page_count = BAN::Math::div_round_up<size_t>(needed_size, PAGE_SIZE);
+		for (size_t i = 0; i < page_count; i++)
+			TRY(stack_region.allocate_page_containing(vaddr + i * PAGE_SIZE, true));
+
+		const auto stack_copy_buf =
+			[&stack_region](BAN::ConstByteSpan buffer, vaddr_t vaddr) -> void
+			{
+				ASSERT(vaddr >= stack_region.vaddr());
+				ASSERT(vaddr + buffer.size() <= stack_region.vaddr() + stack_region.size());
+				MUST(stack_region.copy_data_to_region(vaddr - stack_region.vaddr(), buffer.data(), buffer.size()));
+			};
+
+		const auto stack_push_buf =
+			[&stack_copy_buf, &vaddr](BAN::ConstByteSpan buffer) -> void
+			{
+				stack_copy_buf(buffer, vaddr);
+				vaddr += buffer.size();
+			};
+
+		const auto stack_push_uint =
+			[&stack_push_buf](uintptr_t value) -> void
+			{
+				stack_push_buf(BAN::ConstByteSpan::from(value));
+			};
+
+		const auto stack_push_str =
+			[&stack_push_buf](BAN::StringView string) -> void
+			{
+				const uint8_t* string_u8 = reinterpret_cast<const uint8_t*>(string.data());
+				stack_push_buf(BAN::ConstByteSpan(string_u8, string.size() + 1));
+			};
+
+		// argc
+		stack_push_uint(argv.size());
+
+		// argv
+		const vaddr_t argv_vaddr = vaddr;
+		vaddr += argv.size() * sizeof(uintptr_t);
+		stack_push_uint(0);
+
+		// envp
+		const vaddr_t envp_vaddr = vaddr;
+		vaddr += envp.size() * sizeof(uintptr_t);
+		stack_push_uint(0);
+
+		// auxv
+		for (auto aux : auxv)
+			stack_push_buf(BAN::ConstByteSpan::from(aux));
+
+		// information
+		for (size_t i = 0; i < argv.size(); i++)
+		{
+			stack_copy_buf(BAN::ConstByteSpan::from(vaddr), argv_vaddr + i * sizeof(uintptr_t));
+			stack_push_str(argv[i]);
+		}
+		for (size_t i = 0; i < envp.size(); i++)
+		{
+			stack_copy_buf(BAN::ConstByteSpan::from(vaddr), envp_vaddr + i * sizeof(uintptr_t));
+			stack_push_str(envp[i]);
+		}
+
+		return stack_region.vaddr() + stack_region.size() - needed_size;
 	}
 
 	Process::Process(const Credentials& credentials, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp)
@@ -266,12 +389,6 @@ namespace Kernel
 		return valid_pgrp;
 	}
 
-	void Process::add_thread(Thread* thread)
-	{
-		LockGuard _(m_process_lock);
-		MUST(m_threads.push_back(thread));
-	}
-
 	void Process::cleanup_function(Thread* thread)
 	{
 		{
@@ -304,21 +421,14 @@ namespace Kernel
 		// NOTE: We must unmap ranges while the page table is still alive
 		m_mapped_regions.clear();
 
+		// After we give our page table to the thread, we cannot get rescheduled
+		Processor::set_interrupt_state(InterruptState::Disabled);
 		thread->give_keep_alive_page_table(BAN::move(m_page_table));
 	}
 
 	bool Process::on_thread_exit(Thread& thread)
 	{
-		{
-			RWLockWRGuard _(m_memory_region_lock);
-
-			const size_t index = find_mapped_region(thread.userspace_stack().vaddr());
-			ASSERT(m_mapped_regions[index].ptr() == thread.m_userspace_stack);
-
-			m_mapped_regions.remove(index);
-
-			thread.m_userspace_stack = nullptr;
-		}
+		// TODO: if main thread exists, should we delete its stack?
 
 		LockGuard _(m_process_lock);
 
@@ -830,12 +940,23 @@ namespace Kernel
 			BAN::String executable_path;
 			TRY(executable_path.append(executable_file.canonical_path));
 
-			// This is ugly but thread insterts userspace stack to process' memory region
-			BAN::swap(m_mapped_regions, new_mapped_regions);
-			auto new_thread_or_error = Thread::create_userspace(this, *new_page_table);
-			BAN::swap(m_mapped_regions, new_mapped_regions);
-			auto* new_thread = TRY(new_thread_or_error);
-			BAN::ScopeGuard new_thread_deleter([new_thread] { delete new_thread; });
+			const vaddr_t shared_page_vaddr = new_page_table->reserve_free_page(executable.interp_base.value_or(0x400000), USERSPACE_END);
+			if (shared_page_vaddr == 0)
+				return BAN::Error::from_errno(ENOMEM);
+			new_page_table->map_page_at(
+				Processor::shared_page_paddr(),
+				shared_page_vaddr,
+				PageTable::UserSupervisor | PageTable::Present
+			);
+
+			auto userspace_stack = TRY(MemoryBackedRegion::create(
+				*new_page_table,
+				Thread::userspace_stack_size,
+				{ Thread::userspace_stack_base, USERSPACE_END },
+				MemoryRegion::Type::PRIVATE,
+				PageTable::UserSupervisor | PageTable::ReadWrite | PageTable::Present,
+				O_RDWR
+			));
 
 			BAN::Vector<LibELF::AuxiliaryVector> auxiliary_vector;
 			TRY(auxiliary_vector.reserve(5 + 2 * executable.interp_base.has_value()));
@@ -860,16 +981,6 @@ namespace Kernel
 					.a_un = { .a_ptr = reinterpret_cast<void*>(executable.interp_base.value()) },
 				}));
 			}
-
-			const vaddr_t shared_page_vaddr = new_page_table->reserve_free_page(executable.interp_base.value_or(0x400000), USERSPACE_END);
-			if (shared_page_vaddr == 0)
-				return BAN::Error::from_errno(ENOMEM);
-			new_page_table->map_page_at(
-				Processor::shared_page_paddr(),
-				shared_page_vaddr,
-				PageTable::UserSupervisor | PageTable::Present
-			);
-
 			TRY(auxiliary_vector.push_back({
 				.a_type = LibELF::AT_PAGESZ,
 				.a_un = { .a_val = PAGE_SIZE },
@@ -882,12 +993,12 @@ namespace Kernel
 
 			TRY(auxiliary_vector.push_back({
 				.a_type = LibELF::AT_STACK_BASE,
-				.a_un = { .a_ptr = reinterpret_cast<void*>(new_thread->userspace_stack().vaddr()) },
+				.a_un = { .a_ptr = reinterpret_cast<void*>(userspace_stack->vaddr()) },
 			}));
 
 			TRY(auxiliary_vector.push_back({
 				.a_type = LibELF::AT_STACK_SIZE,
-				.a_un = { .a_ptr = reinterpret_cast<void*>(new_thread->userspace_stack().size()) },
+				.a_un = { .a_ptr = reinterpret_cast<void*>(userspace_stack->size()) },
 			}));
 
 			TRY(auxiliary_vector.push_back({
@@ -895,29 +1006,56 @@ namespace Kernel
 				.a_un = { .a_val = 0 },
 			}));
 
-			TRY(new_thread->initialize_userspace(
-				executable.entry_point,
+			const vaddr_t initial_stack_pointer = TRY(setup_initial_process_stack(
+				*userspace_stack,
 				str_argv.span(),
 				str_envp.span(),
 				auxiliary_vector.span()
 			));
 
+			const vaddr_t userspace_stack_vaddr = userspace_stack->vaddr();
+			const vaddr_t userspace_stack_size  = userspace_stack->size();
+			TRY(new_mapped_regions.emplace_back(BAN::move(userspace_stack)));
+
+			BAN::Optional<vaddr_t> tls_addr;
 			if (executable.master_tls.has_value())
 			{
 				auto tls_result = TRY(initialize_thread_local_storage(*new_page_table, *executable.master_tls));
 				TRY(new_mapped_regions.emplace_back(BAN::move(tls_result.region)));
-#if ARCH(x86_64)
-				new_thread->set_fsbase(tls_result.addr);
-#elif ARCH(i686)
-				new_thread->set_gsbase(tls_result.addr);
-#else
-#error
-#endif
+				tls_addr = tls_result.addr;
 			}
 
 			BAN::sort::sort(new_mapped_regions.begin(), new_mapped_regions.end(), [](auto& a, auto& b) {
 				return a->vaddr() < b->vaddr();
 			});
+
+			auto* new_thread = TRY(Thread::create_userspace(
+				this,
+				*new_page_table,
+				userspace_stack_vaddr,
+				userspace_stack_size,
+				executable.entry_point,
+				initial_stack_pointer
+			));
+			if (tls_addr.has_value())
+			{
+#if ARCH(x86_64)
+				new_thread->set_fsbase(tls_addr.value());
+#elif ARCH(i686)
+				new_thread->set_gsbase(tls_addr.value());
+#else
+#error
+#endif
+			}
+
+			// NOTE: bind new thread to this processor so it wont be rescheduled before end of this function
+			//       and so that adding the thread to the scheduler cannot fail
+			if (auto ret = Scheduler::bind_thread_to_processor(new_thread, Processor::current_id()); ret.is_error())
+			{
+				Processor::set_interrupt_state(InterruptState::Enabled);
+				delete new_thread;
+				return ret.release_error();
+			}
 
 			RWLockWRGuard wr_guard(m_memory_region_lock);
 
@@ -928,13 +1066,6 @@ namespace Kernel
 
 			ASSERT(Processor::get_interrupt_state() == InterruptState::Enabled);
 			Processor::set_interrupt_state(InterruptState::Disabled);
-
-			// NOTE: bind new thread to this processor so it wont be rescheduled before end of this function
-			if (auto ret = Scheduler::bind_thread_to_processor(new_thread, Processor::current_id()); ret.is_error())
-			{
-				Processor::set_interrupt_state(InterruptState::Enabled);
-				return ret.release_error();
-			}
 
 			// after this point, everything is initialized and nothing can fail!
 
@@ -948,7 +1079,6 @@ namespace Kernel
 			m_threads.front()->m_process = nullptr;
 			m_threads.front()->give_keep_alive_page_table(BAN::move(m_page_table));
 
-			new_thread_deleter.disable();
 			MUST(Processor::scheduler().add_thread(new_thread));
 			m_threads.front() = new_thread;
 
@@ -3402,13 +3532,43 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_thread_create(void (*entry)(void*), void* arg)
 	{
+		auto userspace_stack = TRY(MemoryBackedRegion::create(
+			page_table(),
+			Thread::userspace_stack_size,
+			{ Thread::userspace_stack_base, USERSPACE_END },
+			MemoryRegion::Type::PRIVATE,
+			PageTable::UserSupervisor | PageTable::ReadWrite | PageTable::Present,
+			O_RDWR
+		));
+
+		const vaddr_t stack_vaddr = userspace_stack->vaddr();
+		const size_t stack_size   = userspace_stack->size();
+		TRY(add_mapped_region(BAN::move(userspace_stack)));
+
+		const vaddr_t initial_stack_pointer = stack_vaddr + stack_size - sizeof(void*);
+		*reinterpret_cast<void**>(initial_stack_pointer) = arg;
+
+		auto* thread = TRY(Thread::create_userspace(
+			this,
+			page_table(),
+			stack_vaddr,
+			stack_size,
+			reinterpret_cast<vaddr_t>(entry),
+			initial_stack_pointer
+		));
+		thread->m_signal_block_mask = Thread::current().m_signal_block_mask;
+
 		LockGuard _(m_process_lock);
 
-		auto* new_thread = TRY(Thread::current().thread_create(entry, arg));
-		MUST(m_threads.push_back(new_thread));
-		MUST(Processor::scheduler().add_thread(new_thread));
+		TRY(m_threads.push_back(thread));
+		if (auto ret = Processor::scheduler().add_thread(thread); ret.is_error())
+		{
+			m_threads.pop_back();
+			delete thread;
+			return ret.release_error();
+		}
 
-		return new_thread->tid();
+		return thread->tid();
 	}
 
 	BAN::ErrorOr<long> Process::sys_thread_exit(void* value)

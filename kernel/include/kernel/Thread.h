@@ -41,21 +41,19 @@ namespace Kernel
 		// TODO: userspace stack size is hard limited, maybe make this dynamic?
 #if ARCH(x86_64)
 		static constexpr size_t userspace_stack_size { 32 << 20 };
+		static constexpr vaddr_t userspace_stack_base { 0x0000700000000000 };
 #elif ARCH(i686)
 		static constexpr size_t userspace_stack_size { 4 << 20 };
+		static constexpr vaddr_t userspace_stack_base { 0xB0000000 };
 #endif
 
 	public:
 		static BAN::ErrorOr<Thread*> create_kernel(entry_t, void*);
-		static BAN::ErrorOr<Thread*> create_userspace(Process*, PageTable&);
+		static BAN::ErrorOr<Thread*> create_userspace(Process*, PageTable&, vaddr_t userspace_stack_vaddr, size_t userspace_stack_size, vaddr_t entry_point, vaddr_t stack_pointer);
 		~Thread();
-
-		BAN::ErrorOr<Thread*> thread_create(entry_t, void*);
 
 		BAN::ErrorOr<Thread*> clone(Process*, uintptr_t sp, uintptr_t ip);
 		void setup_process_cleanup();
-
-		BAN::ErrorOr<void> initialize_userspace(vaddr_t entry, BAN::Span<BAN::String> argv, BAN::Span<BAN::String> envp, BAN::Span<LibELF::AuxiliaryVector> auxv);
 
 		// Returns true, if thread is going to trigger signal
 		bool is_interrupted_by_signal(bool skip_stop_and_cont = false) const;
@@ -112,8 +110,6 @@ namespace Kernel
 		vaddr_t kernel_stack_top() const	{ return m_kernel_stack->vaddr() + m_kernel_stack->size(); }
 		VirtualRange& kernel_stack() { return *m_kernel_stack; }
 
-		MemoryBackedRegion& userspace_stack() { ASSERT(is_userspace() && m_userspace_stack); return *m_userspace_stack; }
-
 		static Thread& current();
 		static pid_t current_tid();
 
@@ -157,8 +153,6 @@ namespace Kernel
 	private:
 		Thread(pid_t tid, Process*);
 
-		void setup_exec(vaddr_t ip, vaddr_t sp);
-
 		static void on_exit_trampoline(Thread*);
 		void on_exit();
 
@@ -180,13 +174,15 @@ namespace Kernel
 		BAN::UniqPtr<PageTable>    m_keep_alive_page_table;
 
 		BAN::UniqPtr<VirtualRange> m_kernel_stack;
-		MemoryBackedRegion*        m_userspace_stack      { nullptr };
 		const pid_t                m_tid                  { 0 };
 		State                      m_state                { State::NotStarted };
 		Process*                   m_process              { nullptr };
 		bool                       m_is_userspace         { false };
 		BAN::Atomic<bool>          m_is_detached          { false };
 		bool                       m_delete_process       { false };
+
+		vaddr_t                    m_userspace_stack_vaddr { 0 };
+		size_t                     m_userspace_stack_size  { 0 };
 
 		vaddr_t                    m_fsbase               { 0 };
 		vaddr_t                    m_gsbase               { 0 };

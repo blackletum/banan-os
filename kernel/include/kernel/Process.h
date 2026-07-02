@@ -44,10 +44,10 @@ namespace Kernel
 		~Process();
 		void cleanup_function(Thread*);
 
-		void register_to_scheduler();
+		BAN::ErrorOr<vaddr_t> setup_initial_process_stack(MemoryBackedRegion&, BAN::Span<BAN::String> argv, BAN::Span<BAN::String> envp, BAN::Span<LibELF::AuxiliaryVector> auxv);
+
 		void exit(int status, int signal);
 
-		void add_thread(Thread*);
 		// returns true if thread was the last one
 		bool on_thread_exit(Thread&);
 
