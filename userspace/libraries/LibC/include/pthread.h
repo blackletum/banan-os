@@ -166,6 +166,9 @@ int			pthread_spin_unlock(pthread_spinlock_t* lock);
 void		pthread_cleanup_pop(int execute);
 void		pthread_cleanup_push(void (*routine)(void*), void* arg);
 
+// non portable APIs
+int pthread_getattr_np(pthread_t thread, pthread_attr_t* attr);
+
 #define _pthread_equal(t1, t2) ((t1) == (t2))
 
 #define _pthread_self() (_get_uthread())

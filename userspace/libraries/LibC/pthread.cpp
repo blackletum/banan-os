@@ -1316,6 +1316,12 @@ int pthread_barrier_wait(pthread_barrier_t* barrier)
 	return 0;
 }
 
+int pthread_getattr_np(pthread_t thread, pthread_attr_t* attr)
+{
+	*attr = thread->attr;
+	return 0;
+}
+
 static void load_dynamic_tls_module(size_t module)
 {
 	auto* uthread = _get_uthread();
