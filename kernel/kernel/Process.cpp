@@ -863,13 +863,30 @@ namespace Kernel
 		);
 
 		Process* forked = create_process(m_credentials, m_pid, m_sid, m_pgrp);
+		BAN::ScopeGuard process_deleter([forked] {
+			forked->m_page_table.clear();
+			delete forked;
+		});
+		forked->m_page_table = BAN::move(page_table);
+
+		Thread* thread = TRY(Thread::current().clone(forked, sp, ip));
+		BAN::ScopeGuard thread_deleter([thread] { delete thread; });
+
+		// NOTE: make sure the last two `MUST`s don't fail
+		TRY(forked->m_threads.reserve(1));
+		TRY(Processor::scheduler().bind_thread_to_processor(thread, Processor::current_id()));
+
+		{
+			SpinLockGuard _(s_process_lock);
+			TRY(s_processes.push_back(forked));
+		}
+
 		forked->m_controlling_terminal = m_controlling_terminal;
 		forked->m_working_directory = BAN::move(working_directory);
 		forked->m_root_file = BAN::move(root_file);
 		forked->m_cmdline = BAN::move(cmdline);
 		forked->m_environ = BAN::move(environ);
 		forked->m_executable = BAN::move(executable);
-		forked->m_page_table = BAN::move(page_table);
 		forked->m_shared_page_vaddr = BAN::move(shared_page_vaddr);
 		forked->m_open_file_descriptors = BAN::move(*open_file_descriptors);
 		forked->m_mapped_regions = BAN::move(mapped_regions);
@@ -881,10 +898,12 @@ namespace Kernel
 		child_exit_status->pgrp = forked->pgrp();
 
 		ASSERT(this == &Process::current());
-		// FIXME: this should be able to fail
-		Thread* thread = MUST(Thread::current().clone(forked, sp, ip));
-		forked->add_thread(thread);
-		forked->register_to_scheduler();
+
+		MUST(forked->m_threads.push_back(thread));
+		MUST(Processor::scheduler().add_thread(thread));
+
+		process_deleter.disable();
+		thread_deleter.disable();
 
 		return forked->pid();
 	}
