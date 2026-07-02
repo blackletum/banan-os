@@ -168,6 +168,8 @@ void		pthread_cleanup_push(void (*routine)(void*), void* arg);
 
 // non portable APIs
 int pthread_getattr_np(pthread_t thread, pthread_attr_t* attr);
+int pthread_getattr_default_np(pthread_attr_t* attr);
+int pthread_setattr_default_np(const pthread_attr_t* attr);
 
 #define _pthread_equal(t1, t2) ((t1) == (t2))
 

@@ -20,6 +20,17 @@ struct pthread_trampoline_info_t
 	void* arg;
 };
 
+static pthread_attr_t s_default_pthread_attr {
+	.inheritsched = PTHREAD_INHERIT_SCHED,
+	.schedparam   = {},
+	.schedpolicy  = SCHED_RR,
+	.detachstate  = PTHREAD_CREATE_JOINABLE,
+	.scope        = PTHREAD_SCOPE_SYSTEM,
+	.stackaddr    = nullptr,
+	.stacksize    = 8 * 1024 * 1024,
+	.guardsize    = static_cast<size_t>(getpagesize()),
+};
+
 static void _pthread_cancel_handler(int)
 {
 	uthread* uthread = _get_uthread();
@@ -260,15 +271,7 @@ int pthread_attr_destroy(pthread_attr_t* attr)
 
 int pthread_attr_init(pthread_attr_t* attr)
 {
-	*attr = {
-		.inheritsched = PTHREAD_INHERIT_SCHED,
-		.schedparam = {},
-		.schedpolicy = SCHED_RR,
-		.detachstate = PTHREAD_CREATE_JOINABLE,
-		.scope = PTHREAD_SCOPE_SYSTEM,
-		.stacksize = Kernel::Thread::userspace_stack_size,
-		.guardsize = static_cast<size_t>(getpagesize()),
-	};
+	*attr = s_default_pthread_attr;
 	return 0;
 }
 
@@ -1319,6 +1322,19 @@ int pthread_barrier_wait(pthread_barrier_t* barrier)
 int pthread_getattr_np(pthread_t thread, pthread_attr_t* attr)
 {
 	*attr = thread->attr;
+	return 0;
+}
+
+int pthread_getattr_default_np(pthread_attr_t* attr)
+{
+	*attr = s_default_pthread_attr;
+	return 0;
+}
+
+int pthread_setattr_default_np(const pthread_attr_t* attr)
+{
+	// TODO: validate, make thread safe?
+	s_default_pthread_attr = *attr;
 	return 0;
 }
 
