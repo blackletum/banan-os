@@ -91,7 +91,7 @@ __BEGIN_DECLS
 #define SIGQUEUE_MAX                  _POSIX_SIGQUEUE_MAX
 #define SS_REPL_MAX                   _POSIX_SS_REPL_MAX
 #define STREAM_MAX                    _POSIX_STREAM_MAX
-#define SYMLOOP_MAX                   _POSIX_SYMLOOP_MAX
+#define SYMLOOP_MAX                   128
 #define TIMER_MAX                     _POSIX_TIMER_MAX
 #define TRACE_EVENT_NAME_MAX          _POSIX_TRACE_EVENT_NAME_MAX
 #define TRACE_NAME_MAX                _POSIX_TRACE_NAME_MAX
