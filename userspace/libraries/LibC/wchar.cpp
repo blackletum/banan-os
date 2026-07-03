@@ -178,6 +178,22 @@ int wcsncmp(const wchar_t* ws1, const wchar_t* ws2, size_t n)
 	return *ws1 - *ws2;
 }
 
+int wcscasecmp(const wchar_t* ws1, const wchar_t* ws2)
+{
+	for (; *ws1 && *ws2; ws1++, ws2++)
+		if (towlower(*ws1) != towlower(*ws2))
+			break;
+	return towlower(*ws1) - towlower(*ws2);
+}
+
+int wcsncasecmp(const wchar_t* ws1, const wchar_t* ws2, size_t n)
+{
+	for (; --n && *ws1 && *ws2; ws1++, ws2++)
+		if (towlower(*ws1) != towlower(*ws2))
+			break;
+	return towlower(*ws1) - towlower(*ws2);
+}
+
 size_t wcslen(const wchar_t* ws)
 {
 	size_t len = 0;
