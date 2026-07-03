@@ -5,6 +5,8 @@
 #include <locale.h>
 #include <wchar.h>
 
+#include <bits/strtoT.hpp>
+
 wint_t btowc(int c)
 {
 	if (c == 0 || c > 0x7F)
@@ -31,8 +33,6 @@ int mbsinit(const mbstate_t* ps)
 }
 
 wchar_t* wcstok(wchar_t* __restrict, const wchar_t* __restrict, wchar_t** __restrict) { ASSERT_NOT_REACHED(); }
-long wcstol(const wchar_t* __restrict, wchar_t** __restrict, int) { ASSERT_NOT_REACHED(); }
-unsigned long wcstoul(const wchar_t* __restrict, wchar_t** __restrict, int) { ASSERT_NOT_REACHED(); }
 int swprintf(wchar_t* __restrict, size_t, const wchar_t* __restrict, ...) { ASSERT_NOT_REACHED(); }
 size_t wcsrtombs(char* __restrict, const wchar_t** __restrict, size_t, mbstate_t* __restrict) { ASSERT_NOT_REACHED(); }
 
@@ -352,6 +352,41 @@ wchar_t* wmemset(wchar_t* ws, wchar_t wc, size_t n)
 	for (size_t i = 0; i < n; i++)
 		ws[i] = wc;
 	return ws;
+}
+
+float wcstof(const wchar_t* __restrict nptr, wchar_t** __restrict endptr)
+{
+	return strtoT<float>(nptr, endptr, errno);
+}
+
+double wcstod(const wchar_t* __restrict nptr, wchar_t** __restrict endptr)
+{
+	return strtoT<double>(nptr, endptr, errno);
+}
+
+long double wcstold(const wchar_t* __restrict nptr, wchar_t** __restrict endptr)
+{
+	return strtoT<long double>(nptr, endptr, errno);
+}
+
+long wcstol(const wchar_t* __restrict nptr, wchar_t** __restrict endptr, int base)
+{
+	return strtoT<long>(nptr, endptr, base, errno);
+}
+
+long long wcstoll(const wchar_t* __restrict nptr, wchar_t** __restrict endptr, int base)
+{
+	return strtoT<long long>(nptr, endptr, base, errno);
+}
+
+unsigned long wcstoul(const wchar_t* __restrict nptr, wchar_t** __restrict endptr, int base)
+{
+	return strtoT<unsigned long>(nptr, endptr, base, errno);
+}
+
+unsigned long long wcstoull(const wchar_t* __restrict nptr, wchar_t** __restrict endptr, int base)
+{
+	return strtoT<unsigned long long>(nptr, endptr, base, errno);
 }
 
 // FIXME: actually support multibyte :D
