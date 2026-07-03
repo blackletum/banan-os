@@ -82,6 +82,7 @@ namespace CPUID
 	bool has_pat();
 	bool has_1gib_pages();
 	bool has_invariant_tsc();
+	bool has_rdtscp();
 	uint64_t get_tsc_frequency();
 	bool has_kvm_pvclock();
 

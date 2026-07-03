@@ -8,6 +8,7 @@ namespace Kernel::API
 	enum SharedPageFeature : uint32_t
 	{
 		SPF_GETTIME = 1 << 0,
+		SPF_RDTSCP  = 1 << 1,
 	};
 
 	struct SharedPage

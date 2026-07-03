@@ -1,3 +1,4 @@
+#include <BAN/Atomic.h>
 #include <BAN/Assert.h>
 #include <BAN/Debug.h>
 #include <BAN/Math.h>
@@ -28,53 +29,68 @@ int clock_gettime(clockid_t clock_id, struct timespec* tp)
 	if (g_shared_page == nullptr || !(g_shared_page->features & Kernel::API::SPF_GETTIME))
 		return syscall(SYS_CLOCK_GETTIME, clock_id, tp);
 
-	const auto get_cpu =
-		[]() -> uint8_t {
-			uint16_t limit;
-			asm volatile("lsl %1, %0" : "=r"(limit) : "r"(g_shared_page->gdt_cpu_offset));
-			return limit;
-		};
+	uint32_t mult;
+	int8_t   shift;
+	uint64_t last_ns;
+	uint64_t last_tsc;
+	uint64_t curr_tsc;
 
-	for (;;)
+	const auto read_tsc_info = [&](volatile decltype(g_shared_page->cpus[0].gettime_local)& lgettime) {
+		uint32_t seq1, seq2;
+		do {
+			seq1     = BAN::atomic_load(lgettime.seq, BAN::memory_order_acquire);
+			mult     = lgettime.mult;
+			shift    = lgettime.shift;
+			last_ns  = lgettime.last_ns;
+			last_tsc = lgettime.last_tsc;
+			seq2     = BAN::atomic_load(lgettime.seq, BAN::memory_order_acquire);
+		} while (seq1 != seq2 || (seq1 & 1));
+	};
+
+read_tsc_info:
+	if (g_shared_page->features & Kernel::API::SPF_RDTSCP)
 	{
-		const auto cpu = get_cpu();
-
-		const auto& sgettime = g_shared_page->gettime_shared;
-		const auto& lgettime = g_shared_page->cpus[cpu].gettime_local;
-
-		const auto old_seq = lgettime.seq;
-		if (old_seq & 1)
-			continue;
-
-		uint64_t monotonic_ns = __builtin_ia32_rdtsc() - lgettime.last_tsc;
-		if (lgettime.shift >= 0)
-			monotonic_ns <<= lgettime.shift;
-		else
-			monotonic_ns >>= -lgettime.shift;
-		monotonic_ns = (monotonic_ns * lgettime.mult) >> 32;
-		monotonic_ns += lgettime.last_ns;
-
-		if (old_seq != lgettime.seq || cpu != get_cpu())
-			continue;
-
-		*tp = {
-			.tv_sec = static_cast<time_t>(monotonic_ns / 1'000'000'000),
-			.tv_nsec = static_cast<long>(monotonic_ns % 1'000'000'000)
-		};
-
-		if (clock_id == CLOCK_REALTIME)
-		{
-			tp->tv_sec += sgettime.realtime_s;
-			tp->tv_nsec += sgettime.realtime_ns;
-			if (tp->tv_nsec >= 1'000'000'000)
-			{
-				tp->tv_sec += tp->tv_nsec / 1'000'000'000;
-				tp->tv_nsec = tp->tv_nsec % 1'000'000'000;
-			}
-		}
-
-		return 0;
+		uint32_t cpu;
+		curr_tsc = __builtin_ia32_rdtscp(&cpu);
+		read_tsc_info(g_shared_page->cpus[cpu].gettime_local);
 	}
+	else for (;;)
+	{
+		uint16_t cpu1, cpu2;
+		asm volatile("lsl %1, %0" : "=r"(cpu1) : "r"(g_shared_page->gdt_cpu_offset));
+		curr_tsc = __builtin_ia32_rdtsc();
+		asm volatile("lsl %1, %0" : "=r"(cpu2) : "r"(g_shared_page->gdt_cpu_offset));
+		if (cpu1 != cpu2)
+			continue;
+		read_tsc_info(g_shared_page->cpus[cpu1].gettime_local);
+		break;
+	}
+
+	// NOTE: as we read TSC before getting the calibration, it is possible
+	//       for the calibration to get updated in between.
+	if (curr_tsc < last_tsc)
+		goto read_tsc_info;
+
+	uint64_t clock_ns = curr_tsc - last_tsc;
+	if (shift >= 0)
+		clock_ns <<= shift;
+	else
+		clock_ns >>= -shift;
+	clock_ns = (clock_ns * mult) >> 32;
+	clock_ns += last_ns;
+
+	if (clock_id == CLOCK_REALTIME)
+	{
+		const auto& sgettime = g_shared_page->gettime_shared;
+		clock_ns += sgettime.realtime_s * 1'000'000'000 + sgettime.realtime_ns;
+	}
+
+	*tp = {
+		.tv_sec = static_cast<time_t>(clock_ns / 1'000'000'000),
+		.tv_nsec = static_cast<long>(clock_ns % 1'000'000'000)
+	};
+
+	return 0;
 }
 
 int clock_getres(clockid_t clock_id, struct timespec* res)

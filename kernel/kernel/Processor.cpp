@@ -1,3 +1,4 @@
+#include <kernel/CPUID.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/kmalloc.h>
@@ -19,6 +20,8 @@ namespace Kernel
 	static constexpr uint32_t MSR_IA32_LSTAR = 0xC0000082;
 	static constexpr uint32_t MSR_IA32_FMASK = 0xC0000084;
 #endif
+
+	static constexpr uint32_t MSR_IA32_TSC_AUX = 0xC0000103;
 
 	ProcessorID          Processor::s_bsp_id                     { PROCESSOR_NONE };
 	BAN::Atomic<uint8_t> Processor::s_processor_count            { 0 };
@@ -219,6 +222,9 @@ namespace Kernel
 		shared_page.gdt_cpu_offset = GDT::cpu_index_offset();
 		shared_page.features = 0;
 
+		if (CPUID::has_rdtscp())
+			shared_page.features |= API::SPF_RDTSCP;
+
 		ASSERT(Processor::count() + sizeof(Kernel::API::SharedPage) <= PAGE_SIZE);
 	}
 
@@ -321,7 +327,10 @@ namespace Kernel
 	void Processor::update_tsc()
 	{
 		auto& lgettime = shared_page().cpus[current_index()].gettime_local;
-		lgettime.seq = lgettime.seq + 1;
+
+		const auto seq = BAN::atomic_load(lgettime.seq, BAN::memory_order_relaxed);
+
+		BAN::atomic_store(lgettime.seq, seq + 1, BAN::memory_order_release);
 
 		if (lgettime.seq == 1)
 		{
@@ -330,6 +339,9 @@ namespace Kernel
 			lgettime.mult  = tsc_info.mult;
 			lgettime.last_ns  = SystemTimer::get().ns_since_boot_no_tsc();
 			lgettime.last_tsc = __builtin_ia32_rdtsc();
+
+			if (CPUID::has_rdtscp())
+				asm volatile("wrmsr" :: "d"(0x00000000), "a"(current_index()), "c"(MSR_IA32_TSC_AUX));
 		}
 		else
 		{
@@ -353,7 +365,7 @@ namespace Kernel
 			lgettime.mult += correction_delta;
 		}
 
-		lgettime.seq = lgettime.seq + 1;
+		BAN::atomic_store(lgettime.seq, seq + 2, BAN::memory_order_release);
 	}
 
 	uint64_t Processor::ns_since_boot_tsc()

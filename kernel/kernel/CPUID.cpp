@@ -85,6 +85,16 @@ namespace CPUID
 		return buffer[3] & (1 << 8);
 	}
 
+	bool has_rdtscp()
+	{
+		uint32_t buffer[4] {};
+		get_cpuid(0x80000000, buffer);
+		if (buffer[0] < 0x80000001)
+			return false;
+		get_cpuid(0x80000001, buffer);
+		return buffer[3] & (1 << 27);
+	}
+
 	uint64_t get_tsc_frequency()
 	{
 		uint32_t buffer[4];
