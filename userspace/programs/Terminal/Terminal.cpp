@@ -563,22 +563,22 @@ void Terminal::handle_sgr(int32_t value)
 		case 27:
 			m_colors_inverted = false;
 			break;
-		case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:
+		case 30 ... 37:
 			m_fg_color = s_colors_dark[value - 30];
 			break;
 		case 39:
 			m_fg_color = s_default_fg_color;
 			break;
-		case 40: case 41: case 42: case 43: case 44: case 45: case 46: case 47:
+		case 40 ... 47:
 			m_bg_color = s_colors_dark[value - 40];
 			break;
 		case 49:
 			m_bg_color = s_default_bg_color;
 			break;
-		case 90: case 91: case 92: case 93: case 94: case 95: case 96: case 97:
+		case 90 ... 97:
 			m_fg_color = s_colors_bright[value - 90];
 			break;
-		case 100: case 101: case 102: case 103: case 104: case 105: case 106: case 107:
+		case 100 ... 107:
 			m_bg_color = s_colors_bright[value - 100];
 			break;
 		default:

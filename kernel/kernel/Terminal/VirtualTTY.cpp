@@ -137,25 +137,25 @@ namespace Kernel
 			case 7:  m_colors_inverted = true;  break;
 			case 27: m_colors_inverted = false; break;
 
-			case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:
+			case 30 ... 37:
 				m_foreground = m_palette[value - 30];
 				break;
 			case 39:
 				m_foreground = m_palette[15];
 				break;
 
-			case 40: case 41: case 42: case 43: case 44: case 45: case 46: case 47:
+			case 40 ... 47:
 				m_background = m_palette[value - 40];
 				break;
 			case 49:
 				m_background = m_palette[0];
 				break;
 
-			case 90: case 91: case 92: case 93: case 94: case 95: case 96: case 97:
+			case 90 ... 97:
 				m_foreground = m_palette[value - 90 + 8];
 				break;
 
-			case 100: case 101: case 102: case 103: case 104: case 105: case 106: case 107:
+			case 100 ... 107:
 				m_background = m_palette[value - 100 + 8];
 				break;
 
@@ -204,9 +204,7 @@ namespace Kernel
 		ASSERT(m_write_lock.is_locked_by_current_thread());
 		switch (ch)
 		{
-			case '0': case '1': case '2': case '3': case '4':
-			case '5': case '6': case '7': case '8': case '9':
-			{
+			case '0' ... '9':
 				if (m_ansi_state.index >= m_ansi_state.max_nums)
 					dwarnln("Only {} arguments supported with ANSI codes", m_ansi_state.max_nums);
 				else
@@ -215,7 +213,6 @@ namespace Kernel
 					val = (val == -1) ? (ch - '0') : (val * 10 + ch - '0');
 				}
 				return;
-			}
 			case ';':
 				m_ansi_state.index = BAN::Math::min<size_t>(m_ansi_state.index + 1, m_ansi_state.max_nums);
 				return;
