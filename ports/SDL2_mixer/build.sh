@@ -3,7 +3,7 @@
 NAME='SDL2_mixer'
 VERSION='2.8.1'
 DOWNLOAD_URL="https://github.com/libsdl-org/SDL_mixer/releases/download/release-$VERSION/SDL2_mixer-$VERSION.tar.gz#cb760211b056bfe44f4a1e180cc7cb201137e4d1572f2002cc1be728efd22660"
-DEPENDENCIES=('SDL2' 'timidity')
+DEPENDENCIES=('sdl2-compat' 'timidity')
 
 configure() {
 	cmake --fresh -S . -B build -G Ninja \

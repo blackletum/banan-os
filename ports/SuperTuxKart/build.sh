@@ -4,7 +4,7 @@ NAME='SuperTuxKart'
 VERSION='1.5'
 DOWNLOAD_URL="https://github.com/supertuxkart/stk-code/releases/download/$VERSION/SuperTuxKart-$VERSION-src.tar.gz#33cf8841e4ff4082d80b9248014295bbbea61d14683e86dff100e3ab8f7b27cb"
 TAR_CONTENT="SuperTuxKart-$VERSION-src"
-DEPENDENCIES=('SDL2' 'curl' 'openal-soft' 'freetype' 'harfbuzz' 'libvorbis' 'libjpeg' 'libpng' 'zlib')
+DEPENDENCIES=('sdl2-compat' 'curl' 'openal-soft' 'freetype' 'harfbuzz' 'libvorbis' 'libjpeg' 'libpng' 'zlib')
 
 configure() {
 	cmake --fresh -B build -S . -G Ninja \

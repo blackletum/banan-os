@@ -3,7 +3,7 @@
 NAME='doom'
 VERSION='git'
 DOWNLOAD_URL="https://github.com/ozkl/doomgeneric.git#5041246e859052e2e258ca6edb4e1e9bbd98fcf5"
-DEPENDENCIES=('SDL2' 'SDL2_mixer' 'timidity')
+DEPENDENCIES=('sdl2-compat' 'SDL2_mixer' 'timidity')
 
 configure() {
 	rm -rf doomgeneric/build

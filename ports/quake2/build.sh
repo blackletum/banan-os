@@ -3,7 +3,7 @@
 NAME='quake2'
 VERSION='git'
 DOWNLOAD_URL="https://github.com/ozkl/quake2generic.git#50190797664fd42fc1b0266150c54f76f92bfa15"
-DEPENDENCIES=('SDL2' 'SDL2_mixer')
+DEPENDENCIES=('sdl2-compat' 'SDL2_mixer')
 
 configure() {
 	make clean
@@ -26,8 +26,8 @@ build() {
 		exit 1
 	fi
 
-	cflags='-Dstricmp=strcasecmp -Wno-incompatible-pointer-types'
-	make CC="$CC" BASE_CFLAGS="$cflags" SDL_PATH="$BANAN_SYSROOT/usr/bin/" -j$(nproc) || exit 1
+	cflags='-Dstricmp=strcasecmp -O3 -ffast-math -Wno-incompatible-pointer-types -Wno-pointer-to-int-cast'
+	make CC="$CC" CFLAGS="$cflags" SDL_PATH="$BANAN_SYSROOT/usr/bin/" -j$(nproc) createdirs build/quake2-soft || exit 1
 }
 
 install() {

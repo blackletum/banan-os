@@ -3,7 +3,7 @@
 NAME='ffmpeg'
 VERSION='8.0.1'
 DOWNLOAD_URL="https://ffmpeg.org/releases/ffmpeg-$VERSION.tar.xz#05ee0b03119b45c0bdb4df654b96802e909e0a752f72e4fe3794f487229e5a41"
-DEPENDENCIES=('SDL2' 'openssl')
+DEPENDENCIES=('sdl2-compat' 'openssl')
 CONFIGURE_OPTIONS=(
 	'--prefix=/usr'
 	'--target-os=none'
