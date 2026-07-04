@@ -2,8 +2,8 @@
 
 NAME='butterscotch'
 VERSION='git'
-DOWNLOAD_URL="https://github.com/ButterscotchRunner/Butterscotch.git#b95f61c1aa84d9dd4a7b589b2a3331ab28dfa2ea"
-DEPENDENCIES=('SDL2' 'openal-soft')
+DOWNLOAD_URL="https://github.com/ButterscotchRunner/Butterscotch.git#c40c17418a3aee6c75d3dcd71a5ce0c8eb258b8e"
+DEPENDENCIES=('SDL3' 'openal-soft')
 
 configure() {
 	cmake --fresh -B build -S . -G Ninja \
@@ -12,7 +12,7 @@ configure() {
 		-DCMAKE_BUILD_TYPE=Release \
 		-DPLATFORM='desktop' \
 		-DAUDIO_BACKEND='openal' \
-		-DDESKTOP_BACKEND='sdl2' \
+		-DDESKTOP_BACKEND='sdl3' \
 		. || exit 1
 }
 
