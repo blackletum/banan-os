@@ -625,11 +625,6 @@ static constexpr uint64_t s_rand_multiplier = 6364136223846793005;
 static constexpr uint64_t s_rand_increment = 1442695040888963407;
 static uint64_t s_rand_state;
 
-static constexpr uint32_t rotr32(uint32_t x, unsigned r)
-{
-	return x >> r | x << (-r & 31);
-}
-
 template<BAN::integral T>
 static inline int rand_impl(T& state)
 {
@@ -643,6 +638,10 @@ static inline int rand_impl(T& state)
 
 	state = x * s_rand_multiplier + s_rand_increment;
 	x ^= x >> 18;
+
+	constexpr auto rotr32 = [](uint32_t x, unsigned r) {
+		return x >> r | x << (-r & 31);
+	};
 
 	return rotr32(x >> 27, count) % RAND_MAX;
 }
@@ -671,25 +670,21 @@ struct random_state_t
 	uint32_t table[];
 };
 
+static constexpr size_t s_random_state_sizes[] { 8, 32, 64, 128, 256 };
+static constexpr size_t s_random_state_size_count = sizeof(s_random_state_sizes) / sizeof(*s_random_state_sizes);
+
 static char* s_random_state;
 
 static size_t get_random_state_size()
 {
-	auto& state = *reinterpret_cast<random_state_t*>(s_random_state);
-	switch (state.type)
-	{
-		case 0: return 8;
-		case 1: return 32;
-		case 2: return 64;
-		case 3: return 128;
-		case 4: return 256;
-	}
-	ASSERT_NOT_REACHED();
+	const auto& state = *reinterpret_cast<random_state_t*>(s_random_state);
+	ASSERT(state.type < s_random_state_size_count);
+	return s_random_state_sizes[state.type];
 }
 
 static size_t get_random_table_size()
 {
-	return get_random_state_size() / sizeof(uint32_t) - 1;
+	return (get_random_state_size() - offsetof(random_state_t, table)) / sizeof(uint32_t);
 }
 
 long random(void)
@@ -712,21 +707,12 @@ char* initstate(unsigned seed, char* statebuf, size_t size)
 	if (size < 8)
 		return NULL;
 
-	auto& new_state = *reinterpret_cast<random_state_t*>(statebuf);
-
-	if (size < 8)
-		new_state.type = 0;
-	else if (size < 32)
-		new_state.type = 1;
-	else if (size < 64)
-		new_state.type = 2;
-	else if (size < 128)
-		new_state.type = 3;
-	else if (size < 256)
-		new_state.type = 4;
-
 	char* old_state = s_random_state;
 	s_random_state = statebuf;
+
+	auto& new_state = *reinterpret_cast<random_state_t*>(s_random_state);
+	for (size_t i = 0; i < s_random_state_size_count && size >= s_random_state_sizes[i]; i++)
+		new_state.type = i;
 
 	const size_t table_size = get_random_table_size();
 	new_state.idx1 = 0;
