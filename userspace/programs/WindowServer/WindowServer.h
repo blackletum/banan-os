@@ -32,6 +32,7 @@ public:
 	BAN::ErrorOr<void> set_background_image(BAN::UniqPtr<LibImage::Image>);
 
 	void on_query_pointer(int fd, const LibGUI::WindowPacket::QueryPointer&);
+	void on_query_keymap(int fd, const LibGUI::WindowPacket::QueryKeymap&);
 
 	void on_window_create(int fd, const LibGUI::WindowPacket::WindowCreate&);
 	void on_window_invalidate(int fd, const LibGUI::WindowPacket::WindowInvalidate&);

@@ -214,6 +214,8 @@ namespace LibGUI
 
 		QueryPointer,
 		QueryPointerEvent,
+		QueryKeymap,
+		QueryKeymapEvent,
 	};
 
 	struct PacketHeader
@@ -310,6 +312,10 @@ namespace LibGUI
 			QueryPointer
 		);
 
+		DEFINE_PACKET(
+			QueryKeymap
+		);
+
 	}
 
 	namespace EventPacket
@@ -402,6 +408,15 @@ namespace LibGUI
 			struct event_t {
 				int32_t x;
 				int32_t y;
+			},
+			event_t, event
+		);
+
+		DEFINE_PACKET_EXTRA(
+			QueryKeymapEvent,
+			struct event_t {
+				uint16_t modifiers[4];
+				uint32_t keymap[4][0x100];
 			},
 			event_t, event
 		);

@@ -64,6 +64,7 @@ namespace LibGUI
 		void request_resize(uint32_t width, uint32_t height);
 
 		void query_cursor_position();
+		void query_keymap();
 
 		uint32_t width() const { return m_width; }
 		uint32_t height() const { return m_height; }
@@ -83,6 +84,7 @@ namespace LibGUI
 		void set_window_fullscreen_event_callback(BAN::Function<void(EventPacket::WindowFullscreenEvent::event_t)> callback) { m_window_fullscreen_event_callback = callback; }
 		void set_window_move_event_callback(BAN::Function<void(EventPacket::WindowMoveEvent::event_t)> callback)             { m_window_move_event_callback = callback; }
 		void set_query_pointer_event_callback(BAN::Function<void(EventPacket::QueryPointerEvent::event_t)> callback)         { m_query_pointer_event_callback = callback; }
+		void set_query_keymap_event_callback(BAN::Function<void(EventPacket::QueryKeymapEvent::event_t)> callback)           { m_query_keymap_event_callback = callback; }
 
 		int server_fd() const { return m_server_fd; }
 
@@ -132,6 +134,7 @@ namespace LibGUI
 		BAN::Function<void(EventPacket::MouseMoveEvent::event_t)>        m_mouse_move_event_callback;
 		BAN::Function<void(EventPacket::MouseScrollEvent::event_t)>      m_mouse_scroll_event_callback;
 		BAN::Function<void(EventPacket::QueryPointerEvent::event_t)>     m_query_pointer_event_callback;
+		BAN::Function<void(EventPacket::QueryKeymapEvent::event_t)>      m_query_keymap_event_callback;
 
 		size_t m_in_buffer_size { 0 };
 		BAN::Array<uint8_t, 64 * 1024> m_in_buffer;

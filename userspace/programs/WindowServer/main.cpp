@@ -474,6 +474,7 @@ int main()
 					WINDOW_PACKET_CASE(WindowSetTitle,         on_window_set_title);
 					WINDOW_PACKET_CASE(WindowSetCursor,        on_window_set_cursor);
 					WINDOW_PACKET_CASE(QueryPointer,           on_query_pointer);
+					WINDOW_PACKET_CASE(QueryKeymap,            on_query_keymap);
 #undef WINDOW_PACKET_CASE
 					default:
 						dprintln("unhandled packet type: {}", static_cast<uint32_t>(header.type));

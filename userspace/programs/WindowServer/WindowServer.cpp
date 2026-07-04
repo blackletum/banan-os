@@ -53,6 +53,37 @@ void WindowServer::on_query_pointer(int fd, const LibGUI::WindowPacket::QueryPoi
 	}
 }
 
+void WindowServer::on_query_keymap(int fd, const LibGUI::WindowPacket::QueryKeymap&)
+{
+	LibGUI::EventPacket::QueryKeymapEvent event_packet {};
+
+	const uint16_t modifiers[4] {
+		0,
+		LibInput::KeyEvent::LShift,
+		LibInput::KeyEvent::RAlt,
+		LibInput::KeyEvent::LShift | LibInput::KeyEvent::RAlt,
+	};
+
+	const auto& layout = LibInput::KeyboardLayout::get();
+	for (size_t i = 0; i < 4; i++)
+	{
+		event_packet.event.modifiers[i] = modifiers[i];
+		for (size_t keycode = 0; keycode < 0x100; keycode++)
+		{
+			event_packet.event.keymap[i][keycode] = static_cast<uint32_t>(layout.key_event_from_raw({
+				.modifier = modifiers[i],
+				.keycode = static_cast<uint8_t>(keycode),
+			}).key);
+		}
+	}
+
+	if (auto ret = append_serialized_packet(event_packet, fd); ret.is_error())
+	{
+		dwarnln("could not respond to query pointer request: {}", ret.error());
+		return;
+	}
+}
+
 void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCreate& packet)
 {
 	for (auto& window : m_client_windows)
