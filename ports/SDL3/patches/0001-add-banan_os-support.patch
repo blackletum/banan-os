@@ -1,0 +1,2447 @@
+diff -ruN SDL3-3.4.10/cmake/macros.cmake SDL3-3.4.10-banan_os/cmake/macros.cmake
+--- SDL3-3.4.10/cmake/macros.cmake	2026-03-25 17:31:21.000000000 +0200
++++ SDL3-3.4.10-banan_os/cmake/macros.cmake	2026-07-04 20:58:04.992850551 +0300
+@@ -409,7 +409,7 @@
+     message(STATUS "")
+   endif()
+ 
+-  if(UNIX AND NOT (ANDROID OR APPLE OR EMSCRIPTEN OR HAIKU OR RISCOS))
++  if(UNIX AND NOT (ANDROID OR APPLE OR EMSCRIPTEN OR HAIKU OR BANAN_OS OR RISCOS))
+     if(NOT (HAVE_X11 OR HAVE_WAYLAND))
+       if(NOT SDL_UNIX_CONSOLE_BUILD)
+         message(FATAL_ERROR
+diff -ruN SDL3-3.4.10/CMakeLists.txt SDL3-3.4.10-banan_os/CMakeLists.txt
+--- SDL3-3.4.10/CMakeLists.txt	2026-05-31 20:38:41.000000000 +0300
++++ SDL3-3.4.10-banan_os/CMakeLists.txt	2026-07-04 20:58:04.993264714 +0300
+@@ -1386,7 +1386,7 @@
+   endif()
+ endif()
+ 
+-if(UNIX OR APPLE OR HAIKU OR RISCOS)
++if(UNIX OR APPLE OR HAIKU OR BANAN_OS OR RISCOS)
+   CheckO_CLOEXEC()
+ endif()
+ 
+@@ -1771,7 +1771,7 @@
+   CheckPTHREAD()
+   CheckLibUnwind()
+ 
+-elseif(UNIX AND NOT APPLE AND NOT RISCOS AND NOT HAIKU)
++elseif(UNIX AND NOT APPLE AND NOT RISCOS AND NOT HAIKU AND NOT BANAN_OS)
+ 
+   set(SDL_DISABLE_DLOPEN_NOTES TRUE)
+   if(SDL_DLOPEN_NOTES)
+@@ -2877,6 +2877,74 @@
+   CheckPTHREAD()
+   sdl_link_dependency(base LIBS root be media game device textencoding tracker)
+ 
++elseif(BANAN_OS)
++  enable_language(CXX)
++  if(SDL_AUDIO)
++    set(SDL_AUDIO_DRIVER_BANAN 1)
++    sdl_glob_sources(
++      "${SDL3_SOURCE_DIR}/src/audio/banan-os/*.cpp"
++      "${SDL3_SOURCE_DIR}/src/audio/banan-os/*.h"
++    )
++    set(HAVE_SDL_AUDIO TRUE)
++    sdl_link_dependency(banan_audio LIBS audio)
++  endif()
++
++  if(SDL_JOYSTICK)
++    set(SDL_JOYSTICK_BANAN 1)
++    sdl_glob_sources("${SDL3_SOURCE_DIR}/src/joystick/banan-os/*.cpp")
++    set(HAVE_SDL_JOYSTICK TRUE)
++    sdl_link_dependency(banan_joystick LIBS input)
++  endif()
++
++  # TODO: support SDL_sysurl
++  sdl_glob_sources("${SDL3_SOURCE_DIR}/src/misc/dummy/*.c")
++  set(HAVE_SDL_MISC TRUE)
++
++  if(SDL_VIDEO)
++    set(SDL_VIDEO_DRIVER_BANAN 1)
++    sdl_glob_sources(
++      "${SDL3_SOURCE_DIR}/src/video/banan-os/*.cpp"
++      "${SDL3_SOURCE_DIR}/src/video/banan-os/*.h"
++    )
++    set(HAVE_SDL_VIDEO TRUE)
++
++    if(SDL_OPENGL)
++      set(SDL_VIDEO_OPENGL 1)
++      set(SDL_VIDEO_RENDER_OGL 1)
++      sdl_link_dependency(opengl LIBS OSMesa)
++      set(HAVE_OPENGL TRUE)
++    endif()
++
++    sdl_link_dependency(banan_video LIBS gui input clipboard)
++  endif()
++
++  set(SDL_FILESYSTEM_UNIX 1)
++  sdl_glob_sources("${SDL3_SOURCE_DIR}/src/filesystem/unix/*.c")
++  set(HAVE_SDL_FILESYSTEM TRUE)
++
++  set(SDL_FSOPS_POSIX 1)
++  sdl_sources("${SDL3_SOURCE_DIR}/src/filesystem/posix/SDL_sysfsops.c")
++  set(HAVE_SDL_FSOPS TRUE)
++
++  set(SDL_TIME_UNIX 1)
++  sdl_glob_sources("${SDL3_SOURCE_DIR}/src/time/unix/*.c")
++  set(HAVE_SDL_TIME TRUE)
++
++  set(SDL_TIMER_UNIX 1)
++  sdl_glob_sources("${SDL3_SOURCE_DIR}/src/timer/unix/*.c")
++  set(HAVE_SDL_TIMERS TRUE)
++
++  if(SDL_POWER)
++    set(SDL_POWER_BANAN 1)
++    sdl_glob_sources("${SDL3_SOURCE_DIR}/src/power/banan-os/*.cpp")
++    set(HAVE_SDL_POWER TRUE)
++  endif()
++
++  sdl_glob_sources("${SDL3_SOURCE_DIR}/src/locale/unix/*.c")
++  set(HAVE_SDL_LOCALE TRUE)
++
++  CheckPTHREAD()
++
+ elseif(RISCOS)
+   sdl_glob_sources("${SDL3_SOURCE_DIR}/src/misc/riscos/*.c")
+   set(HAVE_SDL_MISC TRUE)
+@@ -3417,7 +3485,7 @@
+   if(ANDROID)
+     sdl_sources(${SDL3_SOURCE_DIR}/src/dialog/android/SDL_androiddialog.c)
+     set(HAVE_SDL_DIALOG TRUE)
+-  elseif(UNIX AND NOT APPLE AND NOT RISCOS AND NOT HAIKU)
++  elseif(UNIX AND NOT APPLE AND NOT RISCOS AND NOT HAIKU AND NOT BANAN_OS)
+     sdl_sources(${SDL3_SOURCE_DIR}/src/dialog/unix/SDL_unixdialog.c)
+     sdl_sources(${SDL3_SOURCE_DIR}/src/dialog/unix/SDL_portaldialog.c)
+     sdl_sources(${SDL3_SOURCE_DIR}/src/dialog/unix/SDL_portaldialog.h)
+@@ -3435,7 +3503,7 @@
+     set(HAVE_SDL_DIALOG TRUE)
+   endif()
+ endif()
+-if(UNIX AND NOT APPLE AND NOT RISCOS AND NOT HAIKU)
++if(UNIX AND NOT APPLE AND NOT RISCOS AND NOT HAIKU AND NOT BANAN_OS)
+   sdl_sources(${SDL3_SOURCE_DIR}/src/dialog/unix/SDL_zenitymessagebox.h)
+   sdl_sources(${SDL3_SOURCE_DIR}/src/dialog/unix/SDL_zenitymessagebox.c)
+ endif()
+diff -ruN SDL3-3.4.10/include/build_config/SDL_build_config.h.cmake SDL3-3.4.10-banan_os/include/build_config/SDL_build_config.h.cmake
+--- SDL3-3.4.10/include/build_config/SDL_build_config.h.cmake	2026-05-25 18:40:43.000000000 +0300
++++ SDL3-3.4.10-banan_os/include/build_config/SDL_build_config.h.cmake	2026-07-04 20:58:05.032326725 +0300
+@@ -274,6 +274,7 @@
+ #cmakedefine SDL_AUDIO_DRIVER_DUMMY 1
+ #cmakedefine SDL_AUDIO_DRIVER_EMSCRIPTEN 1
+ #cmakedefine SDL_AUDIO_DRIVER_HAIKU 1
++#cmakedefine SDL_AUDIO_DRIVER_BANAN 1
+ #cmakedefine SDL_AUDIO_DRIVER_JACK 1
+ #cmakedefine SDL_AUDIO_DRIVER_JACK_DYNAMIC @SDL_AUDIO_DRIVER_JACK_DYNAMIC@
+ #cmakedefine SDL_AUDIO_DRIVER_NETBSD 1
+@@ -306,6 +307,7 @@
+ #cmakedefine SDL_JOYSTICK_EMSCRIPTEN 1
+ #cmakedefine SDL_JOYSTICK_GAMEINPUT 1
+ #cmakedefine SDL_JOYSTICK_HAIKU 1
++#cmakedefine SDL_JOYSTICK_BANAN 1
+ #cmakedefine SDL_JOYSTICK_HIDAPI 1
+ #cmakedefine SDL_JOYSTICK_IOKIT 1
+ #cmakedefine SDL_JOYSTICK_LINUX 1
+@@ -400,6 +402,7 @@
+ #cmakedefine SDL_VIDEO_DRIVER_DUMMY 1
+ #cmakedefine SDL_VIDEO_DRIVER_EMSCRIPTEN 1
+ #cmakedefine SDL_VIDEO_DRIVER_HAIKU 1
++#cmakedefine SDL_VIDEO_DRIVER_BANAN 1
+ #cmakedefine SDL_VIDEO_DRIVER_KMSDRM 1
+ #cmakedefine SDL_VIDEO_DRIVER_KMSDRM_DYNAMIC @SDL_VIDEO_DRIVER_KMSDRM_DYNAMIC@
+ #cmakedefine SDL_VIDEO_DRIVER_KMSDRM_DYNAMIC_GBM @SDL_VIDEO_DRIVER_KMSDRM_DYNAMIC_GBM@
+@@ -497,6 +500,7 @@
+ #cmakedefine SDL_POWER_MACOSX 1
+ #cmakedefine SDL_POWER_UIKIT 1
+ #cmakedefine SDL_POWER_HAIKU 1
++#cmakedefine SDL_POWER_BANAN 1
+ #cmakedefine SDL_POWER_EMSCRIPTEN 1
+ #cmakedefine SDL_POWER_HARDWIRED 1
+ #cmakedefine SDL_POWER_VITA 1
+diff -ruN SDL3-3.4.10/include/SDL3/SDL_platform_defines.h SDL3-3.4.10-banan_os/include/SDL3/SDL_platform_defines.h
+--- SDL3-3.4.10/include/SDL3/SDL_platform_defines.h	2026-01-01 19:48:19.000000000 +0200
++++ SDL3-3.4.10-banan_os/include/SDL3/SDL_platform_defines.h	2026-07-04 20:58:05.032247873 +0300
+@@ -48,6 +48,16 @@
+ #define SDL_PLATFORM_HAIKU 1
+ #endif
+ 
++#ifdef __banan_os__
++
++/**
++ * A preprocessor macro that is only defined if compiling for banan-os.
++ *
++ * \since This macro is available since SDL 3.4.10.
++ */
++#define SDL_PLATFORM_BANAN 1
++#endif
++
+ #if defined(bsdi) || defined(__bsdi) || defined(__bsdi__)
+ 
+ /**
+diff -ruN SDL3-3.4.10/src/audio/banan-os/SDL_bananaudio.cpp SDL3-3.4.10-banan_os/src/audio/banan-os/SDL_bananaudio.cpp
+--- SDL3-3.4.10/src/audio/banan-os/SDL_bananaudio.cpp	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/audio/banan-os/SDL_bananaudio.cpp	2026-07-04 20:58:05.034283415 +0300
+@@ -0,0 +1,127 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++#include "SDL_internal.h"
++
++#ifdef SDL_AUDIO_DRIVER_BANAN
++
++extern "C" {
++#include "../SDL_sysaudio.h"
++}
++
++#include "SDL_bananaudio.h"
++
++#include <BAN/ByteSpan.h>
++
++static void BANANAUDIO_DetectDevices(SDL_AudioDevice** default_playback, SDL_AudioDevice** default_recording)
++{
++    const SDL_AudioSpec spec {
++        .format   = SDL_AUDIO_F32LE,
++        .channels = 2,
++        .freq     = 48000,
++    };
++    *default_playback = SDL_AddAudioDevice(false, DEFAULT_PLAYBACK_DEVNAME, &spec, (void*)((size_t)0x1));
++}
++
++static bool BANANAUDIO_OpenDevice(SDL_AudioDevice* device)
++{
++    // TODO: try to accept already existing spec
++    device->spec.format   = SDL_AUDIO_F32LE;
++    device->spec.channels = 2;
++    device->spec.freq     = 48000;
++    SDL_UpdatedAudioDeviceFormat(device);
++
++    const size_t server_buffer_size = BAN::Math::max(device->spec.freq / 10, device->sample_frames * 2);
++    auto audio_or_error = LibAudio::Audio::create(device->spec.channels, device->spec.freq, server_buffer_size);
++    if (audio_or_error.is_error())
++        return SDL_SetError("failed to create audio device: %s", audio_or_error.error().get_message());
++
++    if (auto ret = audio_or_error.value().start(); ret.is_error())
++        return SDL_SetError("failed to start audio streaming: %s", ret.error().get_message());
++
++    void* mixbuf = SDL_malloc(device->buffer_size);
++    if (mixbuf == nullptr)
++        return SDL_OutOfMemory();
++
++    device->hidden = new SDL_PrivateAudioData {
++        .audio = audio_or_error.release_value(),
++        .mixbuf = mixbuf
++    };
++    if (device->hidden == nullptr) {
++        SDL_free(mixbuf);
++        return SDL_OutOfMemory();
++    }
++
++    return true;
++}
++
++static void BANANAUDIO_CloseDevice(SDL_AudioDevice* device)
++{
++    if (device->hidden == nullptr)
++        return;
++    if (device->hidden->mixbuf)
++        SDL_free(device->hidden->mixbuf);
++    delete device->hidden;
++}
++
++static bool BANANAUDIO_PlayDevice(SDL_AudioDevice* device, const Uint8* buffer, int buffer_size)
++{
++    auto sample_span = BAN::ConstByteSpan(buffer, buffer_size).as_span<const float>();
++    return (device->hidden->audio.queue_samples(sample_span) == sample_span.size());
++}
++
++static bool BANANAUDIO_WaitDevice(SDL_AudioDevice* device)
++{
++    for (;;) {
++        const int queueable_sample_frames = device->hidden->audio.queueable_samples() / device->spec.channels;
++        if (queueable_sample_frames >= device->sample_frames)
++            return true;
++        const int needed_sample_frames = device->sample_frames - queueable_sample_frames;
++        SDL_Delay(1000 * needed_sample_frames / device->spec.freq);
++    }
++}
++
++static Uint8* BANANAUDIO_GetDeviceBuf(SDL_AudioDevice* device, int* buffer_size)
++{
++    *buffer_size = device->buffer_size;
++    return static_cast<Uint8*>(device->hidden->mixbuf);
++}
++
++static bool BANANAUDIO_Init(SDL_AudioDriverImpl *impl)
++{
++    impl->DetectDevices = BANANAUDIO_DetectDevices;
++    impl->OpenDevice    = BANANAUDIO_OpenDevice;
++    impl->CloseDevice   = BANANAUDIO_CloseDevice;
++    impl->PlayDevice    = BANANAUDIO_PlayDevice;
++    impl->WaitDevice    = BANANAUDIO_WaitDevice;
++    impl->GetDeviceBuf  = BANANAUDIO_GetDeviceBuf;
++
++    impl->ProvidesOwnCallbackThread    = false;
++    impl->HasRecordingSupport          = false;
++    impl->OnlyHasDefaultPlaybackDevice = true;
++
++    return true;
++}
++
++AudioBootStrap BANANAUDIO_bootstrap = {
++    "banan-os", "banan-os AudioServer", BANANAUDIO_Init, false, false
++};
++
++#endif // SDL_AUDIO_DRIVER_BANAN
+diff -ruN SDL3-3.4.10/src/audio/banan-os/SDL_bananaudio.h SDL3-3.4.10-banan_os/src/audio/banan-os/SDL_bananaudio.h
+--- SDL3-3.4.10/src/audio/banan-os/SDL_bananaudio.h	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/audio/banan-os/SDL_bananaudio.h	2026-07-04 20:58:05.034309396 +0300
+@@ -0,0 +1,36 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++#include "SDL_internal.h"
++
++#ifndef SDL_banan_audio_h_
++#define SDL_banan_audio_h_
++
++#include <LibAudio/Audio.h>
++
++#include "../SDL_sysaudio.h"
++
++struct SDL_PrivateAudioData
++{
++    LibAudio::Audio audio;
++    void* mixbuf { nullptr };
++};
++
++#endif // SDL_bananaudio_h_
+diff -ruN SDL3-3.4.10/src/audio/SDL_audio.c SDL3-3.4.10-banan_os/src/audio/SDL_audio.c
+--- SDL3-3.4.10/src/audio/SDL_audio.c	2026-01-01 19:48:19.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/audio/SDL_audio.c	2026-07-04 20:58:05.036691913 +0300
+@@ -56,6 +56,9 @@
+ #ifdef SDL_AUDIO_DRIVER_HAIKU
+     &HAIKUAUDIO_bootstrap,
+ #endif
++#ifdef SDL_AUDIO_DRIVER_BANAN
++    &BANANAUDIO_bootstrap,
++#endif
+ #ifdef SDL_AUDIO_DRIVER_COREAUDIO
+     &COREAUDIO_bootstrap,
+ #endif
+diff -ruN SDL3-3.4.10/src/audio/SDL_sysaudio.h SDL3-3.4.10-banan_os/src/audio/SDL_sysaudio.h
+--- SDL3-3.4.10/src/audio/SDL_sysaudio.h	2026-01-01 19:48:19.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/audio/SDL_sysaudio.h	2026-07-04 20:58:05.034332235 +0300
+@@ -378,6 +378,7 @@
+ extern AudioBootStrap DSOUND_bootstrap;
+ extern AudioBootStrap WINMM_bootstrap;
+ extern AudioBootStrap HAIKUAUDIO_bootstrap;
++extern AudioBootStrap BANANAUDIO_bootstrap;
+ extern AudioBootStrap COREAUDIO_bootstrap;
+ extern AudioBootStrap DISKAUDIO_bootstrap;
+ extern AudioBootStrap DUMMYAUDIO_bootstrap;
+diff -ruN SDL3-3.4.10/src/joystick/banan-os/SDL_bananjoystick.cpp SDL3-3.4.10-banan_os/src/joystick/banan-os/SDL_bananjoystick.cpp
+--- SDL3-3.4.10/src/joystick/banan-os/SDL_bananjoystick.cpp	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/joystick/banan-os/SDL_bananjoystick.cpp	2026-07-04 20:58:05.051345719 +0300
+@@ -0,0 +1,327 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++#include "SDL_internal.h"
++
++#ifdef SDL_JOYSTICK_BANAN
++
++extern "C" {
++#include "../SDL_sysjoystick.h"
++#include "../SDL_joystick_c.h"
++}
++
++#include <LibInput/Joystick.h>
++
++#include <errno.h>
++#include <fcntl.h>
++#include <sys/stat.h>
++#include <sys/sysmacros.h>
++#include <unistd.h>
++
++struct joystick_hwdata
++{
++    int fd;
++};
++
++#define MAX_JOYSTICKS 32
++
++static char* s_joystick_names[MAX_JOYSTICKS] {};
++static char* s_joystick_paths[MAX_JOYSTICKS] {};
++static int s_joystick_instances[MAX_JOYSTICKS] {};
++static int s_joystick_next_instance = 1;
++
++static int InternalIndexForDeviceIndex(int device_index)
++{
++    for (int i = 0; i < MAX_JOYSTICKS; i++)
++    {
++        if (s_joystick_instances[i] == 0)
++            continue;
++        if (device_index == 0)
++            return i;
++        device_index--;
++    }
++    __builtin_trap();
++}
++
++static void BANAN_JoystickDetect(void)
++{
++    static uint64_t next_detect_ms = 0;
++    if (SDL_GetTicks() < next_detect_ms)
++        return;
++    next_detect_ms = SDL_GetTicks() + 100;
++
++    for (int i = 0; i < MAX_JOYSTICKS; i++) {
++
++        struct stat st;
++        const bool exists = stat(s_joystick_paths[i], &st) == 0;
++        const bool initialized = !!s_joystick_instances[i];
++        if (exists == initialized)
++            continue;
++
++        if (!exists)
++        {
++            SDL_PrivateJoystickRemoved(s_joystick_instances[i]);
++
++            SDL_free(s_joystick_names[i]);
++            s_joystick_names[i] = nullptr;
++            s_joystick_instances[i] = 0;
++        }
++        else
++        {
++            const int instance = s_joystick_next_instance++;
++
++            char buffer[128];
++            SDL_snprintf(buffer, sizeof(buffer), "joystick%d", instance);
++            s_joystick_names[i] = SDL_CreateJoystickName(0, 0, "", buffer);
++            if (s_joystick_names[i] == nullptr)
++                continue;
++
++            s_joystick_instances[i] = instance;
++
++            SDL_PrivateJoystickAdded(instance);
++        }
++    }
++}
++
++static bool BANAN_JoystickInit(void)
++{
++    for (int i = 0; i < MAX_JOYSTICKS; i++) {
++        char buffer[PATH_MAX];
++        SDL_snprintf(buffer, sizeof(buffer), "/dev/joystick%d", i);
++        s_joystick_paths[i] = SDL_strdup(buffer);
++        if (s_joystick_paths[i] == nullptr)
++            return false;
++    }
++
++    BANAN_JoystickDetect();
++
++    return true;
++}
++
++static void BANAN_JoystickQuit(void)
++{
++    for (int i = 0; i < MAX_JOYSTICKS; i++) {
++        if (s_joystick_paths[i])
++            SDL_free(s_joystick_paths[i]);
++        s_joystick_paths[i] = nullptr;
++
++        if (s_joystick_names[i])
++            SDL_free(s_joystick_names[i]);
++        s_joystick_names[i] = nullptr;
++
++        s_joystick_instances[i] = 0;
++    }
++}
++
++static int BANAN_JoystickGetCount(void)
++{
++    int joystick_count = 0;
++    for (int i = 0; i < MAX_JOYSTICKS; i++)
++        joystick_count += !!s_joystick_instances[i];
++    return joystick_count;
++}
++
++static bool BANAN_JoystickIsDevicePresent(Uint16 vendor_id, Uint16 product_id, Uint16 version, const char* name)
++{
++    return false;
++}
++
++static const char* BANAN_JoystickGetDeviceName(int device_index)
++{
++    return s_joystick_names[InternalIndexForDeviceIndex(device_index)];
++}
++
++static const char* BANAN_JoystickGetDevicePath(int device_index)
++{
++    return s_joystick_paths[InternalIndexForDeviceIndex(device_index)];
++}
++
++static SDL_JoystickID BANAN_JoystickGetDeviceInstanceID(int device_index)
++{
++    return s_joystick_instances[InternalIndexForDeviceIndex(device_index)];
++}
++
++static SDL_GUID BANAN_JoystickGetDeviceGUID(int device_index)
++{
++    const char* name = BANAN_JoystickGetDeviceName(device_index);
++    return SDL_CreateJoystickGUIDForName(name);
++}
++
++static bool BANAN_JoystickOpen(SDL_Joystick* joystick, int device_index)
++{
++    const int index = InternalIndexForDeviceIndex(device_index);
++
++    joystick->instance_id = s_joystick_instances[index];
++    joystick->hwdata = static_cast<joystick_hwdata*>(SDL_calloc(1, sizeof(joystick_hwdata)));
++    if (joystick->hwdata == nullptr)
++        return false;
++
++    joystick->hwdata->fd = open(s_joystick_paths[index], O_RDONLY);
++    if (joystick->hwdata->fd == -1) {
++        SDL_free(joystick->hwdata);
++        joystick->hwdata = nullptr;
++        return SDL_SetError("failed to open joystick: %s", strerror(errno));
++    }
++
++    joystick->nbuttons = LibInput::JSB_COUNT;
++    joystick->naxes    = LibInput::JSA_COUNT;
++    joystick->nhats    = 0;
++
++    return true;
++}
++
++static void BANAN_JoystickClose(SDL_Joystick* joystick)
++{
++    if (joystick->hwdata == nullptr)
++        return;
++
++    close(joystick->hwdata->fd);
++    SDL_free(joystick->hwdata);
++    joystick->hwdata = nullptr;
++}
++
++static void BANAN_JoystickUpdate(SDL_Joystick* joystick)
++{
++    LibInput::JoystickState state;
++    if (read(joystick->hwdata->fd, &state, sizeof(state)) < static_cast<ssize_t>(sizeof(state)))
++        return;
++
++    for (int i = 0; i < joystick->naxes; i++)
++        SDL_SendJoystickAxis(0, joystick, i, state.axis[i]);
++
++    for (int i = 0; i < joystick->nbuttons; i++)
++        SDL_SendJoystickButton(0, joystick, i, state.buttons[i]);
++}
++
++static bool BANAN_JoystickGetGamepadMapping(int device_index, SDL_GamepadMapping* out)
++{
++    using namespace LibInput;
++
++    (void)device_index;
++
++    memset(out, 0, sizeof(SDL_GamepadMapping));
++
++#define BANAN_MAP_BUTTON(name, button) \
++        out->name.kind = EMappingKind_Button; \
++        out->name.target = button
++
++#define BANAN_MAP_AXIS(name, axis) \
++        out->name.kind = EMappingKind_Axis; \
++        out->name.target = axis
++
++    BANAN_MAP_BUTTON(a, JSB_FACE_DOWN);
++    BANAN_MAP_BUTTON(b, JSB_FACE_RIGHT);
++    BANAN_MAP_BUTTON(x, JSB_FACE_LEFT);
++    BANAN_MAP_BUTTON(y, JSB_FACE_UP);
++
++    BANAN_MAP_BUTTON(back,   JSB_SELECT);
++    BANAN_MAP_BUTTON(guide,  JSB_MENU);
++    BANAN_MAP_BUTTON(start,  JSB_START);
++
++    BANAN_MAP_BUTTON(leftstick,  JSB_STICK_LEFT);
++    BANAN_MAP_BUTTON(rightstick, JSB_STICK_RIGHT);
++
++    BANAN_MAP_BUTTON(leftshoulder,  JSB_SHOULDER_LEFT);
++    BANAN_MAP_BUTTON(rightshoulder, JSB_SHOULDER_RIGHT);
++
++    BANAN_MAP_BUTTON(dpup,    JSB_DPAD_UP);
++    BANAN_MAP_BUTTON(dpdown,  JSB_DPAD_DOWN);
++    BANAN_MAP_BUTTON(dpleft,  JSB_DPAD_LEFT);
++    BANAN_MAP_BUTTON(dpright, JSB_DPAD_RIGHT);
++
++    BANAN_MAP_AXIS(leftx,  JSA_STICK_LEFT_X);
++    BANAN_MAP_AXIS(lefty,  JSA_STICK_LEFT_Y);
++    BANAN_MAP_AXIS(rightx, JSA_STICK_RIGHT_X);
++    BANAN_MAP_AXIS(righty, JSA_STICK_RIGHT_Y);
++
++    BANAN_MAP_AXIS(lefttrigger,  JSA_TRIGGER_LEFT);
++    BANAN_MAP_AXIS(righttrigger, JSA_TRIGGER_RIGHT);
++
++#undef BANANOS_MAP_BUTTON
++#undef BANANOS_MAP_AXIS
++
++    return true;
++}
++
++static int BANAN_JoystickGetDeviceSteamVirtualGamepadSlot(int device_index)
++{
++    return -1;
++}
++
++static int BANAN_JoystickGetDevicePlayerIndex(int device_index)
++{
++    return -1;
++}
++
++static void BANAN_JoystickSetDevicePlayerIndex(int device_index, int player_index)
++{
++}
++
++static bool BANAN_JoystickRumble(SDL_Joystick* joystick, Uint16 low_frequency_rumble, Uint16 high_frequency_rumble)
++{
++    return SDL_Unsupported();
++}
++
++static bool BANAN_JoystickRumbleTriggers(SDL_Joystick* joystick, Uint16 left_rumble, Uint16 right_rumble)
++{
++    return SDL_Unsupported();
++}
++
++static bool BANAN_JoystickSetLED(SDL_Joystick* joystick, Uint8 red, Uint8 green, Uint8 blue)
++{
++    return SDL_Unsupported();
++}
++
++static bool BANAN_JoystickSendEffect(SDL_Joystick* joystick, const void* data, int size)
++{
++    return SDL_Unsupported();
++}
++
++static bool BANAN_JoystickSetSensorsEnabled(SDL_Joystick* joystick, bool enabled)
++{
++    return SDL_Unsupported();
++}
++
++SDL_JoystickDriver SDL_BANAN_JoystickDriver =
++{
++    BANAN_JoystickInit,
++    BANAN_JoystickGetCount,
++    BANAN_JoystickDetect,
++    BANAN_JoystickIsDevicePresent,
++    BANAN_JoystickGetDeviceName,
++    BANAN_JoystickGetDevicePath,
++    BANAN_JoystickGetDeviceSteamVirtualGamepadSlot,
++    BANAN_JoystickGetDevicePlayerIndex,
++    BANAN_JoystickSetDevicePlayerIndex,
++    BANAN_JoystickGetDeviceGUID,
++    BANAN_JoystickGetDeviceInstanceID,
++    BANAN_JoystickOpen,
++    BANAN_JoystickRumble,
++    BANAN_JoystickRumbleTriggers,
++    BANAN_JoystickSetLED,
++    BANAN_JoystickSendEffect,
++    BANAN_JoystickSetSensorsEnabled,
++    BANAN_JoystickUpdate,
++    BANAN_JoystickClose,
++    BANAN_JoystickQuit,
++    BANAN_JoystickGetGamepadMapping
++};
++
++#endif // SDL_JOYSTICK_BANAN
+diff -ruN SDL3-3.4.10/src/joystick/SDL_joystick.c SDL3-3.4.10-banan_os/src/joystick/SDL_joystick.c
+--- SDL3-3.4.10/src/joystick/SDL_joystick.c	2026-05-22 17:06:35.000000000 +0300
++++ SDL3-3.4.10-banan_os/src/joystick/SDL_joystick.c	2026-07-04 20:58:05.054724251 +0300
+@@ -88,6 +88,9 @@
+ #ifdef SDL_JOYSTICK_HAIKU
+     &SDL_HAIKU_JoystickDriver,
+ #endif
++#ifdef SDL_JOYSTICK_BANAN
++    &SDL_BANAN_JoystickDriver,
++#endif
+ #ifdef SDL_JOYSTICK_USBHID /* !!! FIXME: "USBHID" is a generic name, and doubly-confusing with HIDAPI next to it. This is the *BSD interface, rename this. */
+     &SDL_BSD_JoystickDriver,
+ #endif
+diff -ruN SDL3-3.4.10/src/joystick/SDL_sysjoystick.h SDL3-3.4.10-banan_os/src/joystick/SDL_sysjoystick.h
+--- SDL3-3.4.10/src/joystick/SDL_sysjoystick.h	2026-01-01 19:48:19.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/joystick/SDL_sysjoystick.h	2026-07-04 20:58:05.051593868 +0300
+@@ -250,6 +250,7 @@
+ extern SDL_JoystickDriver SDL_DUMMY_JoystickDriver;
+ extern SDL_JoystickDriver SDL_EMSCRIPTEN_JoystickDriver;
+ extern SDL_JoystickDriver SDL_HAIKU_JoystickDriver;
++extern SDL_JoystickDriver SDL_BANAN_JoystickDriver;
+ extern SDL_JoystickDriver SDL_HIDAPI_JoystickDriver;
+ extern SDL_JoystickDriver SDL_RAWINPUT_JoystickDriver;
+ extern SDL_JoystickDriver SDL_IOS_JoystickDriver;
+diff -ruN SDL3-3.4.10/src/SDL.c SDL3-3.4.10-banan_os/src/SDL.c
+--- SDL3-3.4.10/src/SDL.c	2026-05-27 03:34:28.000000000 +0300
++++ SDL3-3.4.10-banan_os/src/SDL.c	2026-07-04 20:58:05.054814766 +0300
+@@ -717,7 +717,7 @@
+     SDL_DBus_Quit();
+ #endif
+ 
+-#if defined(SDL_PLATFORM_UNIX) && !defined(SDL_PLATFORM_ANDROID) && !defined(SDL_PLATFORM_EMSCRIPTEN) && !defined(SDL_PLATFORM_PRIVATE)
++#if defined(SDL_PLATFORM_UNIX) && !defined(SDL_PLATFORM_ANDROID) && !defined(SDL_PLATFORM_EMSCRIPTEN) && !defined(SDL_PLATFORM_BANAN) && !defined(SDL_PLATFORM_PRIVATE)
+     SDL_Gtk_Quit();
+ #endif
+ 
+@@ -766,6 +766,8 @@
+     return "AIX";
+ #elif defined(SDL_PLATFORM_ANDROID)
+     return "Android";
++#elif defined(SDL_PLATFORM_BANAN)
++    return "banan-os";
+ #elif defined(SDL_PLATFORM_BSDI)
+     return "BSDI";
+ #elif defined(SDL_PLATFORM_EMSCRIPTEN)
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananclipboard.cpp SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananclipboard.cpp
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananclipboard.cpp	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananclipboard.cpp	2026-07-04 20:58:05.069304095 +0300
+@@ -0,0 +1,56 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++#include "SDL_internal.h"
++
++#ifdef SDL_VIDEO_DRIVER_BANAN
++
++#include "SDL_bananclipboard.h"
++
++#include <LibClipboard/Clipboard.h>
++
++bool BANAN_SetClipboardText(SDL_VideoDevice* _this, const char* text)
++{
++    if (auto ret = LibClipboard::Clipboard::set_clipboard_text(text); ret.is_error())
++        return SDL_SetError("failed to set clipboard: %s", ret.error().get_message());
++    return true;
++}
++
++char* BANAN_GetClipboardText(SDL_VideoDevice* _this)
++{
++    auto text_or_error = LibClipboard::Clipboard::get_clipboard_text();
++    if (text_or_error.is_error()) {
++        SDL_SetError("failed to get clipboard: %s", text_or_error.error().get_message());
++        return nullptr;
++    }
++    return SDL_strdup(text_or_error.value().data());
++}
++
++bool BANAN_HasClipboardText(SDL_VideoDevice* _this)
++{
++    auto text_or_error = LibClipboard::Clipboard::get_clipboard_text();
++    if (text_or_error.is_error()) {
++        SDL_SetError("failed to get clipboard: %s", text_or_error.error().get_message());
++        return false;
++    }
++    return !text_or_error.value().empty();
++}
++
++#endif // SDL_VIDEO_DRIVER_BANAN
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananclipboard.h SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananclipboard.h
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananclipboard.h	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananclipboard.h	2026-07-04 20:58:05.069327911 +0300
+@@ -0,0 +1,35 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++
++#include "SDL_internal.h"
++
++#ifndef SDL_BANANCLIPBOARD_H
++#define SDL_BANANCLIPBOARD_H
++
++extern "C" {
++#include "../SDL_sysvideo.h"
++}
++
++bool BANAN_SetClipboardText(SDL_VideoDevice* _this, const char* text);
++char* BANAN_GetClipboardText(SDL_VideoDevice* _this);
++bool BANAN_HasClipboardText(SDL_VideoDevice* _this);
++
++#endif
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananevents.cpp SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananevents.cpp
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananevents.cpp	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananevents.cpp	2026-07-04 20:58:05.069349981 +0300
+@@ -0,0 +1,34 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++#include "SDL_internal.h"
++
++#ifdef SDL_VIDEO_DRIVER_BANAN
++
++#include "SDL_bananevents.h"
++#include "SDL_WindowData.h"
++
++void BANAN_PumpEvents(SDL_VideoDevice* _this)
++{
++    for (SDL_Window* window = _this->windows; window; window = window->next)
++        window->internal->window->poll_events();
++}
++
++#endif // SDL_VIDEO_DRIVER_BANAN
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananevents.h SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananevents.h
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananevents.h	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananevents.h	2026-07-04 20:58:05.069376661 +0300
+@@ -0,0 +1,31 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++
++#ifndef SDL_BANANEVENTS_H
++#define SDL_BANANEVENTS_H
++
++extern "C" {
++#include "../SDL_sysvideo.h"
++}
++
++void BANAN_PumpEvents(SDL_VideoDevice* _this);
++
++#endif
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananframebuffer.cpp SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananframebuffer.cpp
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananframebuffer.cpp	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananframebuffer.cpp	2026-07-04 20:58:05.069399359 +0300
+@@ -0,0 +1,47 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++#include "SDL_internal.h"
++
++#ifdef SDL_VIDEO_DRIVER_BANAN
++
++#include "SDL_bananframebuffer.h"
++#include "SDL_WindowData.h"
++
++bool BANAN_CreateWindowFramebuffer(SDL_VideoDevice* _this, SDL_Window* window, SDL_PixelFormat* format, void** pixels, int* pitch)
++{
++    *format = SDL_PIXELFORMAT_XRGB8888;
++    *pixels = window->internal->window->texture().pixels().data();
++    *pitch  = window->internal->window->texture().width() * sizeof(uint32_t);
++    return true;
++}
++
++bool BANAN_UpdateWindowFramebuffer(SDL_VideoDevice* _this, SDL_Window* window, const SDL_Rect* rects, int numrects)
++{
++    for (int i = 0; i < numrects; i++)
++        window->internal->window->invalidate(rects[i].x, rects[i].y, rects[i].w, rects[i].h);
++    return 0;
++}
++
++void BANAN_DestroyWindowFramebuffer(SDL_VideoDevice* _this, SDL_Window* window)
++{
++}
++
++#endif // SDL_VIDEO_DRIVER_BANAN
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananframebuffer.h SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananframebuffer.h
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananframebuffer.h	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananframebuffer.h	2026-07-04 20:58:05.069425899 +0300
+@@ -0,0 +1,33 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++
++#ifndef SDL_BANANFRAMEBUFFER_H
++#define SDL_BANANFRAMEBUFFER_H
++
++extern "C" {
++#include "../SDL_sysvideo.h"
++}
++
++bool BANAN_CreateWindowFramebuffer(SDL_VideoDevice* _this, SDL_Window* window, SDL_PixelFormat* format, void** pixels, int* pitch);
++bool BANAN_UpdateWindowFramebuffer(SDL_VideoDevice* _this, SDL_Window* window, const SDL_Rect* rects, int numrects);
++void BANAN_DestroyWindowFramebuffer(SDL_VideoDevice* _this, SDL_Window* window);
++
++#endif
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_banankeyboard.cpp SDL3-3.4.10-banan_os/src/video/banan-os/SDL_banankeyboard.cpp
+--- SDL3-3.4.10/src/video/banan-os/SDL_banankeyboard.cpp	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_banankeyboard.cpp	2026-07-04 20:58:05.069449226 +0300
+@@ -0,0 +1,314 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++#include "SDL_internal.h"
++
++#ifdef SDL_VIDEO_DRIVER_BANAN
++
++#include "SDL_banankeyboard.h"
++
++extern "C" {
++#include "../../events/SDL_keyboard_c.h"
++}
++
++#include <BAN/UTF8.h>
++#include <LibGUI/Window.h>
++#include <LibInput/KeyEvent.h>
++
++static SDL_Scancode s_keymap[0x100];
++
++static void BANAN_UpdateKeymap(const LibGUI::EventPacket::QueryKeymapEvent::event_t& keymap_event);
++
++void BANAN_KeyboardInit(SDL_VideoDevice* _this)
++{
++    for (auto& keycode : s_keymap)
++        keycode = SDL_SCANCODE_UNKNOWN;
++
++    using LibInput::keycode_normal;
++    using LibInput::keycode_function;
++    using LibInput::keycode_numpad;
++
++    s_keymap[keycode_normal(0,  0)] = SDL_SCANCODE_GRAVE;
++    s_keymap[keycode_normal(0,  1)] = SDL_SCANCODE_1;
++    s_keymap[keycode_normal(0,  2)] = SDL_SCANCODE_2;
++    s_keymap[keycode_normal(0,  3)] = SDL_SCANCODE_3;
++    s_keymap[keycode_normal(0,  4)] = SDL_SCANCODE_4;
++    s_keymap[keycode_normal(0,  5)] = SDL_SCANCODE_5;
++    s_keymap[keycode_normal(0,  6)] = SDL_SCANCODE_6;
++    s_keymap[keycode_normal(0,  7)] = SDL_SCANCODE_7;
++    s_keymap[keycode_normal(0,  8)] = SDL_SCANCODE_8;
++    s_keymap[keycode_normal(0,  9)] = SDL_SCANCODE_9;
++    s_keymap[keycode_normal(0, 10)] = SDL_SCANCODE_0;
++    s_keymap[keycode_normal(0, 11)] = SDL_SCANCODE_MINUS;
++    s_keymap[keycode_normal(0, 12)] = SDL_SCANCODE_EQUALS;
++    s_keymap[keycode_normal(0, 13)] = SDL_SCANCODE_BACKSPACE;
++    s_keymap[keycode_normal(1,  0)] = SDL_SCANCODE_TAB;
++    s_keymap[keycode_normal(1,  1)] = SDL_SCANCODE_Q;
++    s_keymap[keycode_normal(1,  2)] = SDL_SCANCODE_W;
++    s_keymap[keycode_normal(1,  3)] = SDL_SCANCODE_E;
++    s_keymap[keycode_normal(1,  4)] = SDL_SCANCODE_R;
++    s_keymap[keycode_normal(1,  5)] = SDL_SCANCODE_T;
++    s_keymap[keycode_normal(1,  6)] = SDL_SCANCODE_Y;
++    s_keymap[keycode_normal(1,  7)] = SDL_SCANCODE_U;
++    s_keymap[keycode_normal(1,  8)] = SDL_SCANCODE_I;
++    s_keymap[keycode_normal(1,  9)] = SDL_SCANCODE_O;
++    s_keymap[keycode_normal(1, 10)] = SDL_SCANCODE_P;
++    s_keymap[keycode_normal(1, 11)] = SDL_SCANCODE_LEFTBRACKET;
++    s_keymap[keycode_normal(1, 12)] = SDL_SCANCODE_RIGHTBRACKET;
++    s_keymap[keycode_normal(2,  0)] = SDL_SCANCODE_CAPSLOCK;
++    s_keymap[keycode_normal(2,  1)] = SDL_SCANCODE_A;
++    s_keymap[keycode_normal(2,  2)] = SDL_SCANCODE_S;
++    s_keymap[keycode_normal(2,  3)] = SDL_SCANCODE_D;
++    s_keymap[keycode_normal(2,  4)] = SDL_SCANCODE_F;
++    s_keymap[keycode_normal(2,  5)] = SDL_SCANCODE_G;
++    s_keymap[keycode_normal(2,  6)] = SDL_SCANCODE_H;
++    s_keymap[keycode_normal(2,  7)] = SDL_SCANCODE_J;
++    s_keymap[keycode_normal(2,  8)] = SDL_SCANCODE_K;
++    s_keymap[keycode_normal(2,  9)] = SDL_SCANCODE_L;
++    s_keymap[keycode_normal(2, 10)] = SDL_SCANCODE_SEMICOLON;
++    s_keymap[keycode_normal(2, 11)] = SDL_SCANCODE_APOSTROPHE;
++    s_keymap[keycode_normal(2, 12)] = SDL_SCANCODE_BACKSLASH;
++    s_keymap[keycode_normal(2, 13)] = SDL_SCANCODE_RETURN;
++    s_keymap[keycode_normal(3,  0)] = SDL_SCANCODE_LSHIFT;
++    s_keymap[keycode_normal(3,  1)] = SDL_SCANCODE_NONUSBACKSLASH;
++    s_keymap[keycode_normal(3,  2)] = SDL_SCANCODE_Z;
++    s_keymap[keycode_normal(3,  3)] = SDL_SCANCODE_X;
++    s_keymap[keycode_normal(3,  4)] = SDL_SCANCODE_C;
++    s_keymap[keycode_normal(3,  5)] = SDL_SCANCODE_V;
++    s_keymap[keycode_normal(3,  6)] = SDL_SCANCODE_B;
++    s_keymap[keycode_normal(3,  7)] = SDL_SCANCODE_N;
++    s_keymap[keycode_normal(3,  8)] = SDL_SCANCODE_M;
++    s_keymap[keycode_normal(3,  9)] = SDL_SCANCODE_COMMA;
++    s_keymap[keycode_normal(3, 10)] = SDL_SCANCODE_PERIOD;
++    s_keymap[keycode_normal(3, 11)] = SDL_SCANCODE_SLASH;
++    s_keymap[keycode_normal(3, 12)] = SDL_SCANCODE_RSHIFT;
++    s_keymap[keycode_normal(4,  0)] = SDL_SCANCODE_LCTRL;
++    s_keymap[keycode_normal(4,  1)] = SDL_SCANCODE_LGUI;
++    s_keymap[keycode_normal(4,  2)] = SDL_SCANCODE_LALT;
++    s_keymap[keycode_normal(4,  3)] = SDL_SCANCODE_SPACE;
++    s_keymap[keycode_normal(4,  4)] = SDL_SCANCODE_RALT;
++    s_keymap[keycode_normal(4,  5)] = SDL_SCANCODE_RGUI;
++    s_keymap[keycode_normal(4,  6)] = SDL_SCANCODE_APPLICATION;
++    s_keymap[keycode_normal(4,  7)] = SDL_SCANCODE_RCTRL;
++
++    s_keymap[keycode_normal(5,  0)] = SDL_SCANCODE_UP;
++    s_keymap[keycode_normal(5,  1)] = SDL_SCANCODE_LEFT;
++    s_keymap[keycode_normal(5,  2)] = SDL_SCANCODE_DOWN;
++    s_keymap[keycode_normal(5,  3)] = SDL_SCANCODE_RIGHT;
++
++    s_keymap[keycode_function(0)]  = SDL_SCANCODE_ESCAPE;
++    s_keymap[keycode_function(1)]  = SDL_SCANCODE_F1;
++    s_keymap[keycode_function(2)]  = SDL_SCANCODE_F2;
++    s_keymap[keycode_function(3)]  = SDL_SCANCODE_F3;
++    s_keymap[keycode_function(4)]  = SDL_SCANCODE_F4;
++    s_keymap[keycode_function(5)]  = SDL_SCANCODE_F5;
++    s_keymap[keycode_function(6)]  = SDL_SCANCODE_F6;
++    s_keymap[keycode_function(7)]  = SDL_SCANCODE_F7;
++    s_keymap[keycode_function(8)]  = SDL_SCANCODE_F8;
++    s_keymap[keycode_function(9)]  = SDL_SCANCODE_F9;
++    s_keymap[keycode_function(10)] = SDL_SCANCODE_F10;
++    s_keymap[keycode_function(11)] = SDL_SCANCODE_F11;
++    s_keymap[keycode_function(12)] = SDL_SCANCODE_F12;
++    s_keymap[keycode_function(13)] = SDL_SCANCODE_INSERT;
++    s_keymap[keycode_function(14)] = SDL_SCANCODE_PRINTSCREEN;
++    s_keymap[keycode_function(15)] = SDL_SCANCODE_DELETE;
++    s_keymap[keycode_function(16)] = SDL_SCANCODE_HOME;
++    s_keymap[keycode_function(17)] = SDL_SCANCODE_END;
++    s_keymap[keycode_function(18)] = SDL_SCANCODE_PAGEUP;
++    s_keymap[keycode_function(19)] = SDL_SCANCODE_PAGEDOWN;
++    s_keymap[keycode_function(20)] = SDL_SCANCODE_SCROLLLOCK;
++    s_keymap[keycode_function(21)] = SDL_SCANCODE_MUTE;
++    s_keymap[keycode_function(22)] = SDL_SCANCODE_VOLUMEDOWN;
++    s_keymap[keycode_function(23)] = SDL_SCANCODE_VOLUMEUP;
++
++    s_keymap[keycode_numpad(0, 0)] = SDL_SCANCODE_NUMLOCKCLEAR;
++    s_keymap[keycode_numpad(0, 1)] = SDL_SCANCODE_KP_DIVIDE;
++    s_keymap[keycode_numpad(0, 2)] = SDL_SCANCODE_KP_MULTIPLY;
++    s_keymap[keycode_numpad(0, 3)] = SDL_SCANCODE_KP_MINUS;
++    s_keymap[keycode_numpad(1, 0)] = SDL_SCANCODE_KP_7;
++    s_keymap[keycode_numpad(1, 1)] = SDL_SCANCODE_KP_8;
++    s_keymap[keycode_numpad(1, 2)] = SDL_SCANCODE_KP_9;
++    s_keymap[keycode_numpad(1, 3)] = SDL_SCANCODE_KP_PLUS;
++    s_keymap[keycode_numpad(2, 0)] = SDL_SCANCODE_KP_4;
++    s_keymap[keycode_numpad(2, 1)] = SDL_SCANCODE_KP_5;
++    s_keymap[keycode_numpad(2, 2)] = SDL_SCANCODE_KP_6;
++    s_keymap[keycode_numpad(3, 0)] = SDL_SCANCODE_KP_1;
++    s_keymap[keycode_numpad(3, 1)] = SDL_SCANCODE_KP_2;
++    s_keymap[keycode_numpad(3, 2)] = SDL_SCANCODE_KP_3;
++    s_keymap[keycode_numpad(3, 3)] = SDL_SCANCODE_KP_ENTER;
++    s_keymap[keycode_numpad(4, 0)] = SDL_SCANCODE_KP_0;
++    s_keymap[keycode_numpad(4, 1)] = SDL_SCANCODE_KP_COMMA;
++
++    if (auto result = LibGUI::Window::create(1, 1, ""); !result.is_error())
++    {
++        auto window = result.release_value();
++
++        bool keymap_queried = false;
++        window->set_query_keymap_event_callback([&](auto event) {
++            BANAN_UpdateKeymap(event);
++            keymap_queried = true;
++        });
++
++        window->query_keymap();
++
++        while (!keymap_queried) {
++            window->wait_events();
++            window->poll_events();
++        }
++    }
++
++    SDL_AddKeyboard(SDL_DEFAULT_KEYBOARD_ID, NULL);
++}
++
++static SDL_Keymod BANAN_GetModifierFromBananModifier(uint16_t modifier)
++{
++    SDL_Keymod sdl_mod { 0 };
++    if (modifier & LibInput::KeyEvent::LShift)
++        sdl_mod |= SDL_KMOD_LSHIFT;
++    if (modifier & LibInput::KeyEvent::RShift)
++        sdl_mod |= SDL_KMOD_RSHIFT;
++    if (modifier & LibInput::KeyEvent::LAlt)
++        sdl_mod |= SDL_KMOD_LALT;
++    if (modifier & LibInput::KeyEvent::RAlt)
++        sdl_mod |= SDL_KMOD_RALT;
++    if (modifier & LibInput::KeyEvent::LCtrl)
++        sdl_mod |= SDL_KMOD_LCTRL;
++    if (modifier & LibInput::KeyEvent::RCtrl)
++        sdl_mod |= SDL_KMOD_RCTRL;
++    if (modifier & LibInput::KeyEvent::LSuper)
++        sdl_mod |= SDL_KMOD_LGUI;
++    if (modifier & LibInput::KeyEvent::RSuper)
++        sdl_mod |= SDL_KMOD_RGUI;
++    if (modifier & LibInput::KeyEvent::CapsLock)
++        sdl_mod |= SDL_KMOD_CAPS;
++    if (modifier & LibInput::KeyEvent::NumLock)
++        sdl_mod |= SDL_KMOD_NUM;
++    if (modifier & LibInput::KeyEvent::ScrollLock)
++        sdl_mod |= SDL_KMOD_SCROLL;
++    return sdl_mod;
++}
++
++static void BANAN_UpdateKeymap(const LibGUI::EventPacket::QueryKeymapEvent::event_t& keymap)
++{
++    using LibInput::Key;
++
++    SDL_Keymap* sdl_keymap = SDL_CreateKeymap(true);
++    if (sdl_keymap == nullptr)
++        return;
++
++    for (size_t i = 0; i < SDL_arraysize(keymap.modifiers); i++) {
++        const SDL_Keymod sdl_modstate = BANAN_GetModifierFromBananModifier(keymap.modifiers[i]);
++
++        for (size_t j = 0; j < SDL_arraysize(keymap.keymap[i]); j++) {
++            const SDL_Scancode sdl_scancode = BANAN_GetScancodeFromBananScancode(j);
++            if (sdl_scancode == SDL_SCANCODE_UNKNOWN)
++                continue;
++
++            SDL_Keycode sdl_keycode = SDLK_UNKNOWN;
++
++            if (const char* utf8 = LibInput::key_to_utf8(static_cast<Key>(keymap.keymap[i][j]), keymap.modifiers[i])) {
++                sdl_keycode = BAN::UTF8::to_codepoint(utf8);
++                SDL_assert(sdl_keycode != BAN::UTF8::invalid);
++            }
++            else switch (static_cast<Key>(keymap.keymap[i][j])) {
++                case Key::F1:             sdl_keycode = SDLK_F1; break;
++                case Key::F2:             sdl_keycode = SDLK_F2; break;
++                case Key::F3:             sdl_keycode = SDLK_F3; break;
++                case Key::F4:             sdl_keycode = SDLK_F4; break;
++                case Key::F5:             sdl_keycode = SDLK_F5; break;
++                case Key::F6:             sdl_keycode = SDLK_F6; break;
++                case Key::F7:             sdl_keycode = SDLK_F7; break;
++                case Key::F8:             sdl_keycode = SDLK_F8; break;
++                case Key::F9:             sdl_keycode = SDLK_F9; break;
++                case Key::F10:            sdl_keycode = SDLK_F10; break;
++                case Key::F11:            sdl_keycode = SDLK_F11; break;
++                case Key::F12:            sdl_keycode = SDLK_F12; break;
++                case Key::Insert:         sdl_keycode = SDLK_INSERT; break;
++                case Key::PrintScreen:    sdl_keycode = SDLK_PRINTSCREEN; break;
++                case Key::Delete:         sdl_keycode = SDLK_DELETE; break;
++                case Key::Home:           sdl_keycode = SDLK_HOME; break;
++                case Key::End:            sdl_keycode = SDLK_END; break;
++                case Key::PageUp:         sdl_keycode = SDLK_PAGEUP; break;
++                case Key::PageDown:       sdl_keycode = SDLK_PAGEDOWN; break;
++                case Key::Enter:          sdl_keycode = SDLK_RETURN; break;
++                case Key::Backspace:      sdl_keycode = SDLK_BACKSPACE; break;
++                case Key::Escape:         sdl_keycode = SDLK_ESCAPE; break;
++                case Key::Tab:            sdl_keycode = SDLK_TAB; break;
++                case Key::CapsLock:       sdl_keycode = SDLK_CAPSLOCK; break;
++                case Key::LeftShift:      sdl_keycode = SDLK_LSHIFT; break;
++                case Key::LeftCtrl:       sdl_keycode = SDLK_LCTRL; break;
++                case Key::LeftSuper:      sdl_keycode = SDLK_LGUI; break;
++                case Key::LeftAlt:        sdl_keycode = SDLK_LALT; break;
++                case Key::RightAlt:       sdl_keycode = SDLK_RALT; break;
++                case Key::RightSuper:     sdl_keycode = SDLK_RGUI; break;
++                case Key::RightCtrl:      sdl_keycode = SDLK_RCTRL; break;
++                case Key::RightShift:     sdl_keycode = SDLK_RSHIFT; break;
++                case Key::Application:    sdl_keycode = SDLK_APPLICATION; break;
++                case Key::ArrowUp:        sdl_keycode = SDLK_UP; break;
++                case Key::ArrowDown:      sdl_keycode = SDLK_DOWN; break;
++                case Key::ArrowLeft:      sdl_keycode = SDLK_LEFT; break;
++                case Key::ArrowRight:     sdl_keycode = SDLK_RIGHT; break;
++                case Key::NumLock:        sdl_keycode = SDLK_NUMLOCKCLEAR; break;
++                case Key::ScrollLock:     sdl_keycode = SDLK_SCROLLLOCK; break;
++                case Key::Numpad0:        sdl_keycode = SDLK_KP_0; break;
++                case Key::Numpad1:        sdl_keycode = SDLK_KP_1; break;
++                case Key::Numpad2:        sdl_keycode = SDLK_KP_2; break;
++                case Key::Numpad3:        sdl_keycode = SDLK_KP_3; break;
++                case Key::Numpad4:        sdl_keycode = SDLK_KP_4; break;
++                case Key::Numpad5:        sdl_keycode = SDLK_KP_5; break;
++                case Key::Numpad6:        sdl_keycode = SDLK_KP_6; break;
++                case Key::Numpad7:        sdl_keycode = SDLK_KP_7; break;
++                case Key::Numpad8:        sdl_keycode = SDLK_KP_8; break;
++                case Key::Numpad9:        sdl_keycode = SDLK_KP_9; break;
++                case Key::NumpadPlus:     sdl_keycode = SDLK_KP_PLUS; break;
++                case Key::NumpadMinus:    sdl_keycode = SDLK_KP_MINUS; break;
++                case Key::NumpadMultiply: sdl_keycode = SDLK_KP_MULTIPLY; break;
++                case Key::NumpadDivide:   sdl_keycode = SDLK_KP_DIVIDE; break;
++                case Key::NumpadEnter:    sdl_keycode = SDLK_KP_ENTER; break;
++                case Key::NumpadDecimal:  sdl_keycode = SDLK_KP_DECIMAL; break;
++                case Key::VolumeMute:     sdl_keycode = SDLK_MUTE; break;
++                case Key::VolumeUp:       sdl_keycode = SDLK_VOLUMEUP; break;
++                case Key::VolumeDown:     sdl_keycode = SDLK_VOLUMEDOWN; break;
++                case Key::MediaPlayPause: sdl_keycode = SDLK_MEDIA_PLAY_PAUSE; break;
++                case Key::MediaStop:      sdl_keycode = SDLK_MEDIA_STOP; break;
++                case Key::MediaPrevious:  sdl_keycode = SDLK_MEDIA_PREVIOUS_TRACK; break;
++                case Key::MediaNext:      sdl_keycode = SDLK_MEDIA_NEXT_TRACK; break;
++
++                case Key::Invalid: break;
++                case Key::None: break;
++                case Key::Calculator: break;
++                default:
++                    dwarnln("unmapped banan key {}", keymap.keymap[i][j]);
++                    break;
++            }
++
++            SDL_SetKeymapEntry(sdl_keymap, sdl_scancode, sdl_modstate, sdl_keycode);
++        }
++    }
++
++    SDL_SetKeymap(sdl_keymap, false);
++}
++
++SDL_Scancode BANAN_GetScancodeFromBananScancode(uint8_t scancode)
++{
++    return s_keymap[scancode];
++}
++
++#endif // SDL_VIDEO_DRIVER_BANAN
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_banankeyboard.h SDL3-3.4.10-banan_os/src/video/banan-os/SDL_banankeyboard.h
+--- SDL3-3.4.10/src/video/banan-os/SDL_banankeyboard.h	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_banankeyboard.h	2026-07-04 20:58:05.069478351 +0300
+@@ -0,0 +1,32 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++
++#ifndef SDL_BANANKEYBOARD_H
++#define SDL_BANANKEYBOARD_H
++
++extern "C" {
++#include "../SDL_sysvideo.h"
++}
++
++void BANAN_KeyboardInit(SDL_VideoDevice* _this);
++SDL_Scancode BANAN_GetScancodeFromBananScancode(uint8_t scancode);
++
++#endif
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananmessagebox.cpp SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananmessagebox.cpp
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananmessagebox.cpp	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananmessagebox.cpp	2026-07-04 20:58:05.069500630 +0300
+@@ -0,0 +1,48 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++#include "SDL_internal.h"
++
++#ifdef SDL_VIDEO_DRIVER_BANAN
++
++#include "SDL_bananmessagebox.h"
++
++#include <LibGUI/MessageBox.h>
++
++bool BANAN_ShowMessageBox(const SDL_MessageBoxData* messageboxdata, int* buttonID)
++{
++    BAN::Vector<BAN::StringView> buttons;
++    for (int i = 0; i < messageboxdata->numbuttons; i++)
++        if (buttons.push_back(messageboxdata->buttons[i].text).is_error())
++            return SDL_OutOfMemory();
++
++    if (messageboxdata->flags & SDL_MESSAGEBOX_BUTTONS_RIGHT_TO_LEFT)
++        buttons.reverse();
++
++    auto result = LibGUI::MessageBox::create(messageboxdata->message, messageboxdata->title, buttons.span());
++    if (result.is_error())
++        return SDL_SetError("LibGUI::MessageBox::create: %s", result.error().get_message());
++
++    *buttonID = messageboxdata->buttons[result.value()].buttonID;
++
++    return true;
++}
++
++#endif // SDL_VIDEO_DRIVER_BANAN
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananmessagebox.h SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananmessagebox.h
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananmessagebox.h	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananmessagebox.h	2026-07-04 20:58:05.069523608 +0300
+@@ -0,0 +1,31 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++
++#ifndef SDL_BANANMESSAGEBOX_H
++#define SDL_BANANMESSAGEBOX_H
++
++extern "C" {
++#include "../SDL_sysvideo.h"
++}
++
++bool BANAN_ShowMessageBox(const SDL_MessageBoxData* messageboxdata, int* buttonID);
++
++#endif
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananmodes.cpp SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananmodes.cpp
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananmodes.cpp	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananmodes.cpp	2026-07-04 20:58:05.069545119 +0300
+@@ -0,0 +1,61 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++#include "SDL_internal.h"
++
++#ifdef SDL_VIDEO_DRIVER_BANAN
++
++#include "SDL_bananmodes.h"
++
++#include <errno.h>
++#include <fcntl.h>
++#include <string.h>
++#include <sys/framebuffer.h>
++
++bool BANAN_InitModes(SDL_VideoDevice* _this)
++{
++    const int fb_fd = open("/dev/fb0", O_RDONLY);
++    if (fb_fd == -1)
++        return SDL_SetError("failed to open framebuffer: %s", strerror(errno));
++
++    framebuffer_info_t fb_info;
++    const ssize_t nread = pread(fb_fd, &fb_info, sizeof(fb_info), -1);
++    close(fb_fd);
++
++    if (nread != sizeof(fb_info))
++        return SDL_SetError("failed to read framebuffer size: %s", strerror(errno));
++
++    const SDL_DisplayMode mode {
++        .format = SDL_PIXELFORMAT_XRGB8888,
++        .w = static_cast<int>(fb_info.width),
++        .h = static_cast<int>(fb_info.height),
++        .refresh_rate = 60.0f,
++        .internal = nullptr,
++    };
++    SDL_AddBasicVideoDisplay(&mode);
++
++    return true;
++}
++
++void BANAN_QuitModes(SDL_VideoDevice* _this)
++{
++}
++
++#endif // SDL_VIDEO_DRIVER_BANAN
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananmodes.h SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananmodes.h
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananmodes.h	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananmodes.h	2026-07-04 20:58:05.069567469 +0300
+@@ -0,0 +1,32 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++
++#ifndef SDL_BANANMODES_H
++#define SDL_BANANMODES_H
++
++extern "C" {
++#include "../SDL_sysvideo.h"
++}
++
++bool BANAN_InitModes(SDL_VideoDevice* _this);
++void BANAN_QuitModes(SDL_VideoDevice* _this);
++
++#endif
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananmouse.cpp SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananmouse.cpp
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananmouse.cpp	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananmouse.cpp	2026-07-04 20:58:05.069589818 +0300
+@@ -0,0 +1,144 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++#include "SDL_internal.h"
++
++#ifdef SDL_VIDEO_DRIVER_BANAN
++
++#include "SDL_bananmouse.h"
++#include "SDL_WindowData.h"
++
++extern "C" {
++#include "../../events/SDL_mouse_c.h"
++}
++
++struct SDL_CursorData
++{
++    uint32_t w;
++    uint32_t h;
++    int32_t ox;
++    int32_t oy;
++    uint32_t data[];
++};
++
++static SDL_Cursor* BANAN_CreateDefaultCursor()
++{
++    SDL_Cursor* cursor = static_cast<SDL_Cursor*>(SDL_calloc(1, sizeof(SDL_Cursor)));
++    if (cursor == nullptr)
++        return nullptr;
++
++    cursor->internal = static_cast<SDL_CursorData*>(SDL_calloc(1, sizeof(SDL_CursorData)));
++    if (cursor->internal == nullptr) {
++        SDL_free(cursor);
++        return nullptr;
++    }
++
++    cursor->internal->w = 0;
++    cursor->internal->h = 0;
++    cursor->internal->ox = 0;
++    cursor->internal->oy = 0;
++    return cursor;
++}
++
++static SDL_Cursor* BANAN_CreateCursor(SDL_Surface* surface, int hot_x, int hot_y)
++{
++    const size_t cursor_data_size = surface->w * surface->h * sizeof(uint32_t);
++
++    SDL_Cursor* cursor = static_cast<SDL_Cursor*>(SDL_calloc(1, sizeof(SDL_Cursor)));
++    if (cursor == nullptr)
++        return nullptr;
++
++    cursor->internal = static_cast<SDL_CursorData*>(SDL_calloc(1, sizeof(SDL_CursorData) + cursor_data_size));
++    if (cursor->internal == nullptr) {
++        SDL_free(cursor);
++        return nullptr;
++    }
++
++    SDL_Surface* surface_argb8888 = (surface->format == SDL_PIXELFORMAT_ARGB8888)
++        ? surface
++        : SDL_ConvertSurface(surface, SDL_PIXELFORMAT_ARGB8888);
++    if (surface_argb8888 == nullptr) {
++        SDL_free(cursor);
++        return nullptr;
++    }
++
++    cursor->internal->w = surface->w;
++    cursor->internal->h = surface->h;
++    cursor->internal->ox = hot_x;
++    cursor->internal->oy = hot_y;
++    SDL_memcpy(cursor->internal->data, surface->pixels, cursor_data_size);
++
++    if (surface != surface_argb8888)
++        SDL_DestroySurface(surface_argb8888);
++
++    return cursor;
++}
++
++static void BANAN_FreeCursor(SDL_Cursor* cursor)
++{
++    SDL_free(cursor->internal);
++    SDL_free(cursor);
++}
++
++static bool BANAN_ShowCursor(SDL_Cursor* cursor)
++{
++    SDL_VideoDevice* _this = SDL_GetVideoDevice();
++    if (_this == nullptr)
++        return true;
++
++    for (SDL_Window* window = _this->windows; window; window = window->next) {
++        window->internal->window->set_cursor_visible(!!cursor);
++        if (cursor != nullptr) {
++            const auto pixels = BAN::Span<const uint32_t>(cursor->internal->data, cursor->internal->w * cursor->internal->h);
++            window->internal->window->set_cursor(cursor->internal->w, cursor->internal->h, pixels, cursor->internal->ox, cursor->internal->oy);
++        }
++    }
++
++    return true;
++}
++
++static bool BANAN_SetRelativeMouseMode(bool enabled)
++{
++    SDL_Window* window = SDL_GetMouseFocus();
++    if (window == nullptr)
++        return true;
++
++    if (window->internal->relative_mouse == enabled)
++        return true;
++
++    window->internal->window->set_mouse_relative(enabled);
++    window->internal->relative_mouse = enabled;
++    return true;
++}
++
++void BANAN_MouseInit(SDL_VideoDevice* _this)
++{
++    SDL_Mouse* mouse = SDL_GetMouse();
++    mouse->CreateCursor = BANAN_CreateCursor;
++    mouse->FreeCursor = BANAN_FreeCursor;
++    mouse->ShowCursor = BANAN_ShowCursor;
++    mouse->SetRelativeMouseMode = BANAN_SetRelativeMouseMode;
++
++    SDL_SetDefaultCursor(BANAN_CreateDefaultCursor());
++
++    SDL_AddMouse(SDL_DEFAULT_MOUSE_ID, NULL);
++}
++
++#endif // SDL_VIDEO_DRIVER_BANAN
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananmouse.h SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananmouse.h
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananmouse.h	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananmouse.h	2026-07-04 20:58:05.069615590 +0300
+@@ -0,0 +1,33 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++
++#include "SDL_internal.h"
++
++#ifndef SDL_BANANMOUSE_H
++#define SDL_BANANMOUSE_H
++
++extern "C" {
++#include "../SDL_sysvideo.h"
++}
++
++void BANAN_MouseInit(SDL_VideoDevice* _this);
++
++#endif
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananopengl.cpp SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananopengl.cpp
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananopengl.cpp	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananopengl.cpp	2026-07-04 20:58:05.069638638 +0300
+@@ -0,0 +1,178 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++#include "SDL_internal.h"
++
++#if defined(SDL_VIDEO_DRIVER_BANAN) && defined(SDL_VIDEO_OPENGL)
++
++#include "SDL_bananopengl.h"
++#include "SDL_WindowData.h"
++
++#include <GL/osmesa.h>
++
++struct SDL_GLContextState
++{
++    OSMesaContext osmesa_context;
++    SDL_Window* window;
++};
++
++bool BANAN_GL_LoadLibrary(SDL_VideoDevice* _this, const char* path)
++{
++    _this->gl_config.driver_loaded = 1;
++    return true;
++}
++
++void BANAN_GL_UnloadLibrary(SDL_VideoDevice* _this)
++{
++    _this->gl_config.driver_loaded = 0;
++}
++
++SDL_FunctionPointer BANAN_GL_GetProcAddress(SDL_VideoDevice* _this, const char* proc)
++{
++    return OSMesaGetProcAddress(proc);
++}
++
++SDL_GLContext BANAN_GL_CreateContext(SDL_VideoDevice* _this, SDL_Window* window)
++{
++    const auto& gl_config = _this->gl_config;
++
++    const auto osmesa_depth_bits = [&gl_config]() -> int {
++        if (gl_config.depth_size <= 0)
++            return 0;
++        if (gl_config.depth_size <= 16)
++            return 16;
++        if (gl_config.depth_size <= 24)
++            return 24;
++        return 32;
++    };
++
++    const auto osmesa_stencil_bits = [&gl_config]() -> int {
++        if (gl_config.stencil_size <= 0)
++            return 0;
++        return 8;
++    };
++
++    const auto osmesa_accum_bits = [&gl_config]() -> int {
++        const int accum_bits = gl_config.accum_alpha_size + gl_config.accum_red_size + gl_config.accum_green_size + gl_config.accum_blue_size;
++        if (accum_bits <= 0)
++            return 0;
++        return 16;
++    };
++
++    const int osmesa_profile = [&gl_config]() -> int {
++        switch (gl_config.profile_mask) {
++            case SDL_GL_CONTEXT_PROFILE_CORE:
++                return OSMESA_CORE_PROFILE;
++            case 0:
++            case SDL_GL_CONTEXT_PROFILE_COMPATIBILITY:
++                return OSMESA_COMPAT_PROFILE;
++        }
++        return 0;
++    }();
++
++    if (osmesa_profile == 0) {
++        SDL_SetError("unsupported gl profile %d", gl_config.profile_mask);
++        return nullptr;
++    }
++
++    const int attribs[] {
++        OSMESA_FORMAT,                OSMESA_BGRA,
++        OSMESA_DEPTH_BITS,            osmesa_depth_bits(),
++        OSMESA_STENCIL_BITS,          osmesa_stencil_bits(),
++        OSMESA_ACCUM_BITS,            osmesa_accum_bits(),
++        OSMESA_PROFILE,               osmesa_profile,
++        OSMESA_CONTEXT_MAJOR_VERSION, gl_config.major_version,
++        OSMESA_CONTEXT_MINOR_VERSION, gl_config.minor_version,
++        0
++    };
++
++    SDL_GLContext gl_context = static_cast<SDL_GLContextState*>(SDL_calloc(1, sizeof(SDL_GLContextState)));
++    if (gl_context == nullptr)
++        return nullptr;
++    gl_context->window = window;
++
++    OSMesaContext sharelist = nullptr;
++    if (gl_config.share_with_current_context)
++        if (SDL_GLContext current = SDL_GL_GetCurrentContext())
++            sharelist = current->osmesa_context;
++
++    gl_context->osmesa_context = OSMesaCreateContextAttribs(attribs, sharelist);
++    if (gl_context->osmesa_context == nullptr) {
++        SDL_free(gl_context);
++        SDL_SetError("failed to create opengl context");
++        return nullptr;
++    }
++
++    if (!BANAN_GL_MakeCurrent(_this, window, gl_context)) {
++        OSMesaDestroyContext(gl_context->osmesa_context);
++        SDL_free(gl_context);
++        return nullptr;
++    }
++
++    return gl_context;
++}
++
++bool BANAN_GL_DestroyContext(SDL_VideoDevice* _this, SDL_GLContext context)
++{
++    if (context->window->internal->gl_context == context)
++        if (!BANAN_GL_MakeCurrent(_this, context->window, nullptr))
++            return false;
++    OSMesaDestroyContext(context->osmesa_context);
++    SDL_free(context);
++    return true;
++}
++
++bool BANAN_GL_MakeCurrent(SDL_VideoDevice* _this, SDL_Window* window, SDL_GLContext context)
++{
++    if (context == nullptr) {
++        if (!OSMesaMakeCurrent(nullptr, nullptr, GL_UNSIGNED_BYTE, 0, 0))
++            return SDL_SetError("failed to unset opengl context");
++        if (window || (window = SDL_GL_GetCurrentWindow()))
++            window->internal->gl_context = nullptr;
++        return true;
++    }
++
++    if (context->window != window)
++        return SDL_SetError("trying to set opengl context with mismatching windows");
++
++    auto& texture = window->internal->window->texture();
++    if (!OSMesaMakeCurrent(context->osmesa_context, texture.pixels().data(), GL_UNSIGNED_BYTE, texture.width(), texture.height()))
++        return SDL_SetError("failed to set opengl context");
++    OSMesaPixelStore(OSMESA_Y_UP, 0);
++
++    window->internal->gl_context = context;
++
++    return true;
++}
++
++bool BANAN_GL_SwapWindow(SDL_VideoDevice* _this, SDL_Window* window)
++{
++    // NOTE: we need to call glFinish for the pixel data to get actually get written
++    static void (*glFinish)() = nullptr;
++    if (glFinish == nullptr && (glFinish = BANAN_GL_GetProcAddress(_this, "glFinish")) == nullptr)
++        return SDL_SetError("could not find glFinish");
++    glFinish();
++
++    window->internal->window->invalidate();
++
++    return true;
++}
++
++#endif // SDL_VIDEO_DRIVER_BANAN && SDL_VIDEO_OPENGL
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananopengl.h SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananopengl.h
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananopengl.h	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananopengl.h	2026-07-04 20:58:05.069668949 +0300
+@@ -0,0 +1,41 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++
++#ifndef SDL_BANANOPENGL_H
++#define SDL_BANANOPENGL_H
++
++#ifdef SDL_VIDEO_OPENGL
++
++extern "C" {
++#include "../SDL_sysvideo.h"
++}
++
++bool BANAN_GL_LoadLibrary(SDL_VideoDevice* _this, const char* path);
++void BANAN_GL_UnloadLibrary(SDL_VideoDevice* _this);
++SDL_FunctionPointer BANAN_GL_GetProcAddress(SDL_VideoDevice* _this, const char* proc);
++SDL_GLContext BANAN_GL_CreateContext(SDL_VideoDevice* _this, SDL_Window* window);
++bool BANAN_GL_DestroyContext(SDL_VideoDevice* _this, SDL_GLContext context);
++bool BANAN_GL_MakeCurrent(SDL_VideoDevice* _this, SDL_Window* window, SDL_GLContext context);
++bool BANAN_GL_SwapWindow(SDL_VideoDevice* _this, SDL_Window* window);
++
++#endif // SDL_VIDEO_OPENGL
++
++#endif
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananvideo.cpp SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananvideo.cpp
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananvideo.cpp	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananvideo.cpp	2026-07-04 20:58:05.069691997 +0300
+@@ -0,0 +1,114 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++
++#include "SDL_internal.h"
++
++#ifdef SDL_VIDEO_DRIVER_BANAN
++
++#include "SDL_bananclipboard.h"
++#include "SDL_bananevents.h"
++#include "SDL_bananframebuffer.h"
++#include "SDL_banankeyboard.h"
++#include "SDL_bananmessagebox.h"
++#include "SDL_bananmodes.h"
++#include "SDL_bananmouse.h"
++#include "SDL_bananopengl.h"
++#include "SDL_bananwindow.h"
++
++static bool BANAN_VideoInit(SDL_VideoDevice* _this)
++{
++    if (!BANAN_InitModes(_this))
++        return false;
++
++    BANAN_KeyboardInit(_this);
++    BANAN_MouseInit(_this);
++
++    return true;
++}
++
++static void BANAN_VideoQuit(SDL_VideoDevice* _this)
++{
++    BANAN_QuitModes(_this);
++}
++
++static void BANAN_DeleteDevice(SDL_VideoDevice* _this)
++{
++    SDL_free(_this);
++}
++
++static SDL_VideoDevice* BANAN_CreateDevice(void)
++{
++    SDL_VideoDevice* device = static_cast<SDL_VideoDevice*>(SDL_calloc(1, sizeof(SDL_VideoDevice)));
++    if (device == nullptr)
++        return nullptr;
++
++    device->internal = nullptr;
++
++    device->VideoInit = BANAN_VideoInit;
++    device->VideoQuit = BANAN_VideoQuit;
++
++    device->PumpEvents = BANAN_PumpEvents;
++
++    device->CreateSDLWindow      = BANAN_CreateWindow;
++    device->DestroyWindow        = BANAN_DestroyWindow;
++    device->SyncWindow           = BANAN_SyncWindow;
++    device->ShowWindow           = BANAN_ShowWindow;
++    device->HideWindow           = BANAN_HideWindow;
++    device->SetWindowResizable   = BANAN_SetWindowResizable;
++    device->SetWindowFocusable   = BANAN_SetWindowFocusable;
++    device->SetWindowTitle       = BANAN_SetWindowTitle;
++    device->SetWindowPosition    = BANAN_SetWindowPosition;
++    device->SetWindowSize        = BANAN_SetWindowSize;
++    device->SetWindowMinimumSize = BANAN_SetWindowMinimumSize;
++    device->SetWindowMaximumSize = BANAN_SetWindowMaximumSize;
++    device->SetWindowFullscreen  = BANAN_SetWindowFullscreen;
++
++    device->CreateWindowFramebuffer  = BANAN_CreateWindowFramebuffer;
++    device->UpdateWindowFramebuffer  = BANAN_UpdateWindowFramebuffer;
++    device->DestroyWindowFramebuffer = BANAN_DestroyWindowFramebuffer;
++
++#ifdef SDL_VIDEO_OPENGL
++    device->GL_LoadLibrary     = BANAN_GL_LoadLibrary;
++    device->GL_UnloadLibrary   = BANAN_GL_UnloadLibrary;
++    device->GL_GetProcAddress  = BANAN_GL_GetProcAddress;
++    device->GL_CreateContext   = BANAN_GL_CreateContext;
++    device->GL_DestroyContext  = BANAN_GL_DestroyContext;
++    device->GL_MakeCurrent     = BANAN_GL_MakeCurrent;
++    device->GL_SwapWindow      = BANAN_GL_SwapWindow;
++#endif
++
++    device->SetClipboardText = BANAN_SetClipboardText;
++    device->GetClipboardText = BANAN_GetClipboardText;
++    device->HasClipboardText = BANAN_HasClipboardText;
++
++    device->free = BANAN_DeleteDevice;
++
++    return device;
++}
++
++VideoBootStrap BANAN_bootstrap = {
++    "banan-os", "banan-os graphics",
++    BANAN_CreateDevice,
++    BANAN_ShowMessageBox,
++    false
++};
++
++#endif // SDL_VIDEO_DRIVER_BANAN
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananwindow.cpp SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananwindow.cpp
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananwindow.cpp	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananwindow.cpp	2026-07-04 20:58:05.069716372 +0300
+@@ -0,0 +1,236 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++#include "SDL_internal.h"
++
++#ifdef SDL_VIDEO_DRIVER_BANAN
++
++#include "SDL_banankeyboard.h"
++#include "SDL_bananopengl.h"
++#include "SDL_bananwindow.h"
++#include "SDL_WindowData.h"
++
++extern "C" {
++#include "../../events/SDL_events_c.h"
++}
++
++bool BANAN_CreateWindow(SDL_VideoDevice* _this, SDL_Window* window, SDL_PropertiesID create_props)
++{
++    auto attributes = LibGUI::Window::default_attributes;
++    attributes.shown         =  !(window->flags & SDL_WINDOW_HIDDEN);
++    attributes.resizable     = !!(window->flags & SDL_WINDOW_RESIZABLE);
++    attributes.focusable     =  !(window->flags & SDL_WINDOW_NOT_FOCUSABLE);
++    attributes.alpha_channel = !!(window->flags & SDL_WINDOW_TRANSPARENT);
++    if (window->flags & (SDL_WINDOW_UTILITY | SDL_WINDOW_TOOLTIP | SDL_WINDOW_POPUP_MENU))
++        attributes.title_bar = false;
++    if (window->flags & SDL_WINDOW_TOOLTIP)
++        attributes.focusable = false;
++
++    const char* title = window->title ? window->title : "";
++    auto window_or_error = LibGUI::Window::create(window->w, window->h, title, attributes);
++    if (window_or_error.is_error())
++        return SDL_SetError("LibGUI::Window::create: %s", window_or_error.error().get_message());
++
++    auto gui_window = window_or_error.release_value();
++
++    gui_window->set_close_window_event_callback([window]() {
++        SDL_SendWindowEvent(window, SDL_EVENT_WINDOW_CLOSE_REQUESTED, 0, 0);
++    });
++    gui_window->set_resize_window_event_callback([_this, window]() {
++#ifdef SDL_VIDEO_OPENGL
++        if (window->internal->gl_context)
++            BANAN_GL_MakeCurrent(_this, window, window->internal->gl_context);
++#endif
++        const int w = window->internal->window->width();
++        const int h = window->internal->window->height();
++        if (window->internal->size_pending && w == window->internal->size_w && h == window->internal->size_h)
++            window->internal->size_pending = false;
++        SDL_SendWindowEvent(window, SDL_EVENT_WINDOW_RESIZED, w, h);
++    });
++    gui_window->set_window_move_event_callback([window](auto event) {
++        if (window->internal->move_pending && event.x == window->internal->move_x && event.y == window->internal->move_y)
++            window->internal->move_pending = false;
++        SDL_SendWindowEvent(window, SDL_EVENT_WINDOW_MOVED, event.x, event.y);
++    });
++    gui_window->set_window_shown_event_callback([window](auto event) {
++        SDL_SendWindowEvent(window, event.shown ? SDL_EVENT_WINDOW_SHOWN : SDL_EVENT_WINDOW_HIDDEN, 0, 0);
++    });
++    gui_window->set_window_focus_event_callback([window](auto event) {
++        if (!event.focused && window->internal->relative_mouse) {
++            window->internal->window->set_mouse_relative(false);
++            window->internal->relative_mouse = false;
++        }
++        if (event.focused && (window->flags & SDL_WINDOW_MOUSE_RELATIVE_MODE)) {
++            window->internal->window->set_mouse_relative(true);
++            window->internal->relative_mouse = true;
++        }
++        SDL_SendWindowEvent(window, event.focused ? SDL_EVENT_WINDOW_FOCUS_GAINED : SDL_EVENT_WINDOW_FOCUS_LOST, 0, 0);
++        SDL_SetKeyboardFocus(event.focused ? window : nullptr);
++    });
++    gui_window->set_window_fullscreen_event_callback([window](auto event) {
++        SDL_SendWindowEvent(window, event.fullscreen ? SDL_EVENT_WINDOW_ENTER_FULLSCREEN : SDL_EVENT_WINDOW_LEAVE_FULLSCREEN, 0, 0);
++        window->internal->fullscreen = event.fullscreen;
++    });
++
++    gui_window->set_key_event_callback([](auto event) {
++        SDL_SendKeyboardKey(0, SDL_DEFAULT_KEYBOARD_ID, event.scancode, BANAN_GetScancodeFromBananScancode(event.scancode), event.pressed());
++
++        if (event.pressed()) {
++            SDL_Window* focus = SDL_GetKeyboardFocus();
++            if (focus == nullptr || !SDL_TextInputActive(focus))	
++                return;
++            if (const char* text = LibInput::key_to_utf8(event.key, event.modifier))
++                SDL_SendKeyboardText(text);
++        }
++    });
++    gui_window->set_mouse_button_event_callback([window](auto event) {
++        constexpr uint8_t button_map[] {
++            [static_cast<size_t>(LibInput::MouseButton::Left)]   = SDL_BUTTON_LEFT,
++            [static_cast<size_t>(LibInput::MouseButton::Right)]  = SDL_BUTTON_RIGHT,
++            [static_cast<size_t>(LibInput::MouseButton::Middle)] = SDL_BUTTON_MIDDLE,
++            [static_cast<size_t>(LibInput::MouseButton::Extra1)] = SDL_BUTTON_X1,
++            [static_cast<size_t>(LibInput::MouseButton::Extra2)] = SDL_BUTTON_X2,
++        };
++        SDL_SendMouseButton(0, window, SDL_DEFAULT_MOUSE_ID, button_map[static_cast<size_t>(event.button)], event.pressed);
++    });
++    gui_window->set_mouse_move_event_callback([window](auto event) {
++        SDL_SendMouseMotion(0, window, SDL_DEFAULT_MOUSE_ID, window->internal->relative_mouse, event.x, event.y);
++    });
++    gui_window->set_mouse_scroll_event_callback([window](auto event) {
++        SDL_SendMouseWheel(0, window, SDL_DEFAULT_MOUSE_ID, 0, event.scroll, SDL_MOUSEWHEEL_NORMAL);
++    });
++
++    window->internal = new SDL_WindowData(BAN::move(gui_window));
++    if (window->internal == nullptr)
++        return SDL_OutOfMemory();
++
++    if (!window->undefined_x || !window->undefined_y)
++        window->internal->window->set_position(window->x, window->y);
++
++    return true;
++}
++
++void BANAN_DestroyWindow(SDL_VideoDevice* _this, SDL_Window* window)
++{
++    if (window->internal)
++        delete window->internal;
++}
++
++bool BANAN_SyncWindow(SDL_VideoDevice* _this, SDL_Window* window)
++{
++    const uint64_t timeout = SDL_GetTicks() + 500;
++    while (window->internal->move_pending || window->internal->size_pending) {
++        const uint64_t current = SDL_GetTicks();
++        if (current > timeout)
++            return false;
++
++        const uint64_t delta = timeout - current;
++        const timespec timeout_ts {
++            .tv_sec  = static_cast<time_t>(delta / 1000),
++            .tv_nsec = static_cast<long>((delta % 1000) * 1000000),
++        };
++
++        window->internal->window->wait_events(&timeout_ts);
++        window->internal->window->poll_events();
++    }
++    return true;
++}
++
++void BANAN_ShowWindow(SDL_VideoDevice* _this, SDL_Window* window)
++{
++    auto attributes = window->internal->window->get_attributes();
++    if (attributes.shown)
++        return;
++    attributes.shown = true;
++    window->internal->window->set_attributes(attributes);
++}
++
++void BANAN_HideWindow(SDL_VideoDevice* _this, SDL_Window* window)
++{
++    auto attributes = window->internal->window->get_attributes();
++    if (!attributes.shown)
++        return;
++    attributes.shown = false;
++    window->internal->window->set_attributes(attributes);
++}
++
++void BANAN_SetWindowResizable(SDL_VideoDevice* _this, SDL_Window* window, bool resizable)
++{
++    auto attributes = window->internal->window->get_attributes();
++    if (attributes.resizable == resizable)
++        return;
++    attributes.resizable = resizable;
++    window->internal->window->set_attributes(attributes);
++}
++
++bool BANAN_SetWindowFocusable(SDL_VideoDevice* _this, SDL_Window* window, bool focusable)
++{
++    auto attributes = window->internal->window->get_attributes();
++    if (attributes.focusable == focusable)
++        return true;
++    attributes.focusable = focusable;
++    window->internal->window->set_attributes(attributes);
++    return true;
++}
++
++void BANAN_SetWindowTitle(SDL_VideoDevice* _this, SDL_Window* window)
++{
++    window->internal->window->set_title(window->title);
++}
++
++bool BANAN_SetWindowPosition(SDL_VideoDevice* _this, SDL_Window* window)
++{
++    window->internal->window->set_position(window->pending.x, window->pending.y);
++    window->internal->move_x = window->pending.x;
++    window->internal->move_y = window->pending.y;
++    window->internal->move_pending = true;
++    return true;
++}
++
++void BANAN_SetWindowSize(SDL_VideoDevice* _this, SDL_Window* window)
++{
++    window->internal->window->request_resize(window->pending.w, window->pending.h);
++    window->internal->size_w = window->pending.w;
++    window->internal->size_h = window->pending.h;
++    window->internal->size_pending = true;
++}
++
++void BANAN_SetWindowMinimumSize(SDL_VideoDevice* _this, SDL_Window* window)
++{
++    window->internal->window->set_min_size(window->min_w, window->min_h);
++}
++
++void BANAN_SetWindowMaximumSize(SDL_VideoDevice* _this, SDL_Window* window)
++{
++    window->internal->window->set_min_size(window->max_w, window->max_h);
++}
++
++SDL_FullscreenResult BANAN_SetWindowFullscreen(SDL_VideoDevice* _this, SDL_Window* window, SDL_VideoDisplay* display, SDL_FullscreenOp fullscreen)
++{
++    // window->internal can be null if SDL_CreateWindow failed and the window was fullscreen
++    if (window == nullptr || window->internal == nullptr)	
++        return SDL_FULLSCREEN_SUCCEEDED;
++    if (window->internal->fullscreen == !!fullscreen)
++        return SDL_FULLSCREEN_SUCCEEDED;
++    window->internal->window->set_fullscreen(!!fullscreen);
++    return SDL_FULLSCREEN_PENDING;
++}
++
++#endif // SDL_VIDEO_DRIVER_BANAN
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_bananwindow.h SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananwindow.h
+--- SDL3-3.4.10/src/video/banan-os/SDL_bananwindow.h	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_bananwindow.h	2026-07-04 20:58:05.069753947 +0300
+@@ -0,0 +1,43 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++
++#ifndef SDL_BANANWINDOW_H
++#define SDL_BANANWINDOW_H
++
++extern "C" {
++#include "../SDL_sysvideo.h"
++}
++
++bool BANAN_CreateWindow(SDL_VideoDevice* _this, SDL_Window* window, SDL_PropertiesID create_props);
++void BANAN_DestroyWindow(SDL_VideoDevice* _this, SDL_Window* window);
++bool BANAN_SyncWindow(SDL_VideoDevice* _this, SDL_Window* window);
++void BANAN_ShowWindow(SDL_VideoDevice* _this, SDL_Window* window);
++void BANAN_HideWindow(SDL_VideoDevice* _this, SDL_Window* window);
++void BANAN_SetWindowResizable(SDL_VideoDevice* _this, SDL_Window* window, bool resizable);
++bool BANAN_SetWindowFocusable(SDL_VideoDevice* _this, SDL_Window* window, bool focusable);
++void BANAN_SetWindowTitle(SDL_VideoDevice* _this, SDL_Window* window);
++bool BANAN_SetWindowPosition(SDL_VideoDevice* _this, SDL_Window* window);
++void BANAN_SetWindowSize(SDL_VideoDevice* _this, SDL_Window* window);
++void BANAN_SetWindowMinimumSize(SDL_VideoDevice* _this, SDL_Window* window);
++void BANAN_SetWindowMaximumSize(SDL_VideoDevice* _this, SDL_Window* window);
++SDL_FullscreenResult BANAN_SetWindowFullscreen(SDL_VideoDevice* _this, SDL_Window* window, SDL_VideoDisplay* display, SDL_FullscreenOp fullscreen);
++
++#endif
+diff -ruN SDL3-3.4.10/src/video/banan-os/SDL_WindowData.h SDL3-3.4.10-banan_os/src/video/banan-os/SDL_WindowData.h
+--- SDL3-3.4.10/src/video/banan-os/SDL_WindowData.h	1970-01-01 02:00:00.000000000 +0200
++++ SDL3-3.4.10-banan_os/src/video/banan-os/SDL_WindowData.h	2026-07-04 20:58:05.069777902 +0300
+@@ -0,0 +1,48 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++
++#ifndef SDL_WindowData_h_
++#define SDL_WindowData_h_
++
++extern "C" {
++#include "../SDL_sysvideo.h"
++}
++
++#include <LibGUI/Window.h>
++
++struct SDL_WindowData
++{
++    BAN::UniqPtr<LibGUI::Window> window;
++
++    bool fullscreen { false };
++    bool relative_mouse { false };
++
++    bool move_pending { false };
++    bool size_pending { false };
++    int move_x, move_y;
++    int size_w, size_h;
++
++#ifdef SDL_VIDEO_OPENGL
++    SDL_GLContext gl_context { nullptr };
++#endif
++};
++
++#endif // SDL_WindowData_h_
+diff -ruN SDL3-3.4.10/src/video/SDL_sysvideo.h SDL3-3.4.10-banan_os/src/video/SDL_sysvideo.h
+--- SDL3-3.4.10/src/video/SDL_sysvideo.h	2026-04-19 14:06:43.000000000 +0300
++++ SDL3-3.4.10-banan_os/src/video/SDL_sysvideo.h	2026-07-04 20:58:05.084879186 +0300
+@@ -527,6 +527,7 @@
+ extern VideoBootStrap X11_bootstrap;
+ extern VideoBootStrap WINDOWS_bootstrap;
+ extern VideoBootStrap HAIKU_bootstrap;
++extern VideoBootStrap BANAN_bootstrap;
+ extern VideoBootStrap UIKIT_bootstrap;
+ extern VideoBootStrap Android_bootstrap;
+ extern VideoBootStrap PS2_bootstrap;
+diff -ruN SDL3-3.4.10/src/video/SDL_video.c SDL3-3.4.10-banan_os/src/video/SDL_video.c
+--- SDL3-3.4.10/src/video/SDL_video.c	2026-05-27 01:28:41.000000000 +0300
++++ SDL3-3.4.10-banan_os/src/video/SDL_video.c	2026-07-04 20:58:05.071028072 +0300
+@@ -110,6 +110,9 @@
+ #ifdef SDL_VIDEO_DRIVER_HAIKU
+     &HAIKU_bootstrap,
+ #endif
++#ifdef SDL_VIDEO_DRIVER_BANAN
++    &BANAN_bootstrap,
++#endif
+ #ifdef SDL_VIDEO_DRIVER_UIKIT
+     &UIKIT_bootstrap,
+ #endif
