@@ -27,6 +27,12 @@ install() {
 }
 
 post_install() {
+	if [ -n "$HARFBUZZ_CIRCULAR" ]; then
+		return
+	fi
+
+	export HARFBUZZ_CIRCULAR=1
+
 	for circular in freetype cairo; do
 		pushd "$BANAN_PORT_DIR/$circular" >/dev/null || exit 1
 		rm -f .compile_hash
