@@ -1,9 +1,9 @@
 #!/bin/bash ../install.sh
 
 NAME='openal-soft'
-VERSION='1.24.3'
-DOWNLOAD_URL="https://github.com/kcat/openal-soft/archive/refs/tags/$VERSION.tar.gz#7e1fecdeb45e7f78722b776c5cf30bd33934b961d7fd2a11e0494e064cc631ce"
-DEPENDENCIES=('SDL2' 'zlib' 'libsndfile')
+VERSION='1.25.2'
+DOWNLOAD_URL="https://github.com/kcat/openal-soft/archive/refs/tags/$VERSION.tar.gz#fb27e5839aa11f0e5b9d33756965291fad5d6909ab928ea1f796f4a1a6877894"
+DEPENDENCIES=('SDL3' 'zlib' 'libsndfile')
 
 configure() {
 	cmake --fresh -B build -S . -G Ninja \
@@ -12,7 +12,7 @@ configure() {
 		-DCMAKE_BUILD_TYPE=Release \
 		-DALSOFT_EXAMPLES=OFF \
 		-DALSOFT_NO_CONFIG_UTIL=ON \
-		-DALSOFT_BACKEND_SDL2=ON \
+		-DALSOFT_BACKEND_SDL3=ON \
 		|| exit 1
 }
 
