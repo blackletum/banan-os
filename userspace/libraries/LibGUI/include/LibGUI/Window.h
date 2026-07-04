@@ -96,7 +96,7 @@ namespace LibGUI
 		void on_socket_error(BAN::StringView function);
 		void cleanup();
 
-		BAN::ErrorOr<void> handle_resize_event(const EventPacket::ResizeWindowEvent&);
+		BAN::ErrorOr<bool> handle_resize_event(const EventPacket::ResizeWindowEvent&);
 
 		template<typename T>
 		void send_packet(const T& packet, BAN::StringView function);

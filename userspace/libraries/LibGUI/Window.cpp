@@ -310,8 +310,16 @@ namespace LibGUI
 		close(m_epoll_fd);
 	}
 
-	BAN::ErrorOr<void> Window::handle_resize_event(const EventPacket::ResizeWindowEvent& event)
+	BAN::ErrorOr<bool> Window::handle_resize_event(const EventPacket::ResizeWindowEvent& event)
 	{
+		void* framebuffer_addr = smo_map(event.smo_key);
+		if (framebuffer_addr == nullptr)
+		{
+			if (errno == ENOENT)
+				return false;
+			return BAN::Error::from_errno(errno);
+		}
+
 		if (m_framebuffer_smo)
 			munmap(m_framebuffer_smo, m_width * m_height * 4);
 		m_framebuffer_smo = nullptr;
@@ -321,17 +329,13 @@ namespace LibGUI
 		if (m_root_widget)
 			TRY(m_root_widget->set_fixed_geometry({ 0, 0, event.width, event.height }));
 
-		void* framebuffer_addr = smo_map(event.smo_key);
-		if (framebuffer_addr == nullptr)
-			return BAN::Error::from_errno(errno);
-
 		m_framebuffer_smo = static_cast<uint32_t*>(framebuffer_addr);
 		m_width = event.width;
 		m_height = event.height;
 
 		invalidate();
 
-		return {};
+		return true;
 	}
 
 	void Window::wait_events(const timespec* timeout)
@@ -414,12 +418,11 @@ namespace LibGUI
 							exit(0);
 						break;
 					case PacketType::ResizeWindowEvent:
-					{
-						MUST(handle_resize_event(TRY_OR_BREAK(EventPacket::ResizeWindowEvent::deserialize(packet_span))));
-						if (m_resize_window_event_callback)
+						if (auto result = handle_resize_event(TRY_OR_BREAK(EventPacket::ResizeWindowEvent::deserialize(packet_span))); result.is_error())
+							return on_socket_error("handle_resize_event");
+						else if (result.value() && m_resize_window_event_callback)
 							m_resize_window_event_callback();
 						break;
-					}
 					case PacketType::WindowShownEvent:
 						if (m_window_shown_event_callback)
 							m_window_shown_event_callback(TRY_OR_BREAK(EventPacket::WindowShownEvent::deserialize(packet_span)).event);
