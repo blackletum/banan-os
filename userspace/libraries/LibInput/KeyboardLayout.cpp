@@ -77,7 +77,7 @@ namespace LibInput
 			key = Key::None;
 	}
 
-	KeyEvent KeyboardLayout::key_event_from_raw(RawKeyEvent event)
+	KeyEvent KeyboardLayout::key_event_from_raw(RawKeyEvent event) const
 	{
 		KeyEvent result;
 		result.modifier = event.modifier;

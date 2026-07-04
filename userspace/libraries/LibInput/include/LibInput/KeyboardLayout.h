@@ -14,7 +14,7 @@ namespace LibInput
 		static BAN::ErrorOr<void> initialize();
 		static KeyboardLayout& get();
 
-		KeyEvent key_event_from_raw(RawKeyEvent);
+		KeyEvent key_event_from_raw(RawKeyEvent) const;
 		BAN::ErrorOr<void> load_from_file(BAN::StringView path);
 
 		BAN::Span<const Key> keymap_normal() const { return m_keycode_to_key_normal.span(); }
