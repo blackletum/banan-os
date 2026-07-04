@@ -84,6 +84,7 @@ int					posix_openpt(int oflag);
 char*				ptsname(int fildes);
 int					putenv(char* string);
 void				qsort(void* base, size_t nel, size_t width, int (*compar)(const void*, const void*));
+void				qsort_r(void* base, size_t nel, size_t width, int (*compar)(const void*, const void*, void*), void* arg);
 int					rand(void);
 int					rand_r(unsigned* seed);
 long				random(void);

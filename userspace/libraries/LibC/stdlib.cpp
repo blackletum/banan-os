@@ -566,7 +566,8 @@ struct qsort_pair
 	uint8_t* gt;
 };
 
-static qsort_pair qsort_partition(uint8_t* pbegin, uint8_t* pend, size_t width, int (*compar)(const void*, const void*))
+template<typename... Args>
+static qsort_pair qsort_partition(uint8_t* pbegin, uint8_t* pend, size_t width, int (*compar)(const void*, const void*, Args...), Args... args)
 {
 	uint8_t* pivot = pbegin + (pend - pbegin) / width / 2 * width;
 
@@ -576,7 +577,7 @@ static qsort_pair qsort_partition(uint8_t* pbegin, uint8_t* pend, size_t width, 
 
 	while (eq < gt)
 	{
-		const int comp = (eq == pivot) ? 0 : compar(eq, pivot);
+		const int comp = (eq == pivot) ? 0 : compar(eq, pivot, args...);
 
 		if (comp < 0)
 		{
@@ -602,13 +603,14 @@ static qsort_pair qsort_partition(uint8_t* pbegin, uint8_t* pend, size_t width, 
 	return { lt, gt };
 }
 
-static void qsort_impl(uint8_t* pbegin, uint8_t* pend, size_t width, int (*compar)(const void*, const void*))
+template<typename... Args>
+static void qsort_impl(uint8_t* pbegin, uint8_t* pend, size_t width, int (*compar)(const void*, const void*, Args...), Args... args)
 {
 	if (pbegin + width >= pend)
 		return;
-	auto [lt, gt] = qsort_partition(pbegin, pend, width, compar);
-	qsort_impl(pbegin, lt, width, compar);
-	qsort_impl(gt, pend, width, compar);
+	auto [lt, gt] = qsort_partition(pbegin, pend, width, compar, args...);
+	qsort_impl(pbegin, lt, width, compar, args...);
+	qsort_impl(gt, pend, width, compar, args...);
 }
 
 void qsort(void* base, size_t nel, size_t width, int (*compar)(const void*, const void*))
@@ -617,6 +619,14 @@ void qsort(void* base, size_t nel, size_t width, int (*compar)(const void*, cons
 		return;
 	uint8_t* pbegin = static_cast<uint8_t*>(base);
 	qsort_impl(pbegin, pbegin + nel * width, width, compar);
+}
+
+void qsort_r(void* base, size_t nel, size_t width, int (*compar)(const void*, const void*, void*), void* arg)
+{
+	if (width == 0 || nel <= 1)
+		return;
+	uint8_t* pbegin = static_cast<uint8_t*>(base);
+	qsort_impl(pbegin, pbegin + nel * width, width, compar, arg);
 }
 
 // Constants and algorithm from https://en.wikipedia.org/wiki/Permuted_congruential_generator
