@@ -95,7 +95,9 @@ namespace Kernel::Input
 		m_scancode_to_keycode_normal[0x38]   = keycode_normal(4,  2);
 		m_scancode_to_keycode_normal[0x39]   = keycode_normal(4,  3);
 		m_scancode_to_keycode_extended[0x38] = keycode_normal(4,  4);
-		m_scancode_to_keycode_extended[0x1D] = keycode_normal(4,  5);
+		m_scancode_to_keycode_extended[0x5C] = keycode_normal(4,  5);
+		m_scancode_to_keycode_extended[0x5D] = keycode_normal(4,  6);
+		m_scancode_to_keycode_extended[0x1D] = keycode_normal(4,  7);
 
 		m_scancode_to_keycode_normal[0x45]   = keycode_numpad(0, 0);
 		m_scancode_to_keycode_extended[0x35] = keycode_numpad(0, 1);
@@ -208,7 +210,9 @@ namespace Kernel::Input
 		m_scancode_to_keycode_normal[0x11]   = keycode_normal(4,  2);
 		m_scancode_to_keycode_normal[0x29]   = keycode_normal(4,  3);
 		m_scancode_to_keycode_extended[0x11] = keycode_normal(4,  4);
-		m_scancode_to_keycode_extended[0x14] = keycode_normal(4,  5);
+		m_scancode_to_keycode_extended[0x27] = keycode_normal(4,  5);
+		m_scancode_to_keycode_extended[0x2F] = keycode_normal(4,  6);
+		m_scancode_to_keycode_extended[0x14] = keycode_normal(4,  7);
 
 		m_scancode_to_keycode_normal[0x77]   = keycode_numpad(0, 0);
 		m_scancode_to_keycode_extended[0x4A] = keycode_numpad(0, 1);
@@ -321,7 +325,9 @@ namespace Kernel::Input
 		m_scancode_to_keycode_normal[0x19] = keycode_normal(4,  2);
 		m_scancode_to_keycode_normal[0x29] = keycode_normal(4,  3);
 		m_scancode_to_keycode_normal[0x39] = keycode_normal(4,  4);
-		m_scancode_to_keycode_normal[0x58] = keycode_normal(4,  5);
+		m_scancode_to_keycode_normal[0x8C] = keycode_normal(4,  5);
+		m_scancode_to_keycode_normal[0x8D] = keycode_normal(4,  6);
+		m_scancode_to_keycode_normal[0x58] = keycode_normal(4,  7);
 
 		m_scancode_to_keycode_normal[0x76] = keycode_numpad(0, 0);
 		m_scancode_to_keycode_normal[0x4A] = keycode_numpad(0, 1);

@@ -56,6 +56,8 @@ namespace Kernel
 		READ_MODIFIER(0xE4, KeyModifier::RCtrl);
 		READ_MODIFIER(0xE2, KeyModifier::LAlt);
 		READ_MODIFIER(0xE6, KeyModifier::RAlt);
+		READ_MODIFIER(0xE3, KeyModifier::LSuper);
+		READ_MODIFIER(0xE7, KeyModifier::RSuper);
 #undef READ_MODIFIER
 
 #define READ_TOGGLE(scancode, key_modifier)                                 \
@@ -340,8 +342,10 @@ namespace Kernel
 		s_scancode_to_keycode[0xE3] = keycode_normal(4,  1);
 		s_scancode_to_keycode[0xE2] = keycode_normal(4,  2);
 		s_scancode_to_keycode[0x2C] = keycode_normal(4,  3);
-		s_scancode_to_keycode[0xE6] = keycode_normal(4,  5);
-		s_scancode_to_keycode[0xE4] = keycode_normal(4,  6);
+		s_scancode_to_keycode[0xE6] = keycode_normal(4,  4);
+		s_scancode_to_keycode[0xE7] = keycode_normal(4,  5);
+		s_scancode_to_keycode[0x65] = keycode_normal(5,  6);
+		s_scancode_to_keycode[0xE4] = keycode_normal(4,  7);
 
 		s_scancode_to_keycode[0x52] = keycode_normal(5,  0);
 		s_scancode_to_keycode[0x50] = keycode_normal(5,  1);

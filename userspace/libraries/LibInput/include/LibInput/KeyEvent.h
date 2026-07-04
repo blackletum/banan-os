@@ -44,7 +44,7 @@ namespace LibInput
 		ExclamationMark, DoubleQuote, Hashtag, Currency, Percent, Ampersand, Slash, Section, Half,
 		OpenParenthesis, CloseParenthesis, OpenSquareBracket, CloseSquareBracket, OpenCurlyBracket, CloseCurlyBracket,
 		Equals, QuestionMark, Plus, BackSlash, Acute, BackTick, TwoDots, Cedilla, Backspace, AtSign, Pound, Dollar, Euro,
-		Escape, Tab, CapsLock, LeftShift, LeftCtrl, Super, LeftAlt, RightAlt, AltGr = RightAlt, RightCtrl, RightShift,
+		Escape, Tab, CapsLock, LeftShift, LeftCtrl, LeftSuper, LeftAlt, RightAlt, AltGr = RightAlt, RightSuper, Application, RightCtrl, RightShift,
 		SingleQuote, Asterix, Caret, Tilde, ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
 		Comma, Semicolon, Period, Colon, Hyphen, Underscore, NumLock, ScrollLock, LessThan, GreaterThan, Pipe, Negation, BrokenBar,
 		Numpad0, Numpad1, Numpad2, Numpad3, Numpad4, Numpad5, Numpad6, Numpad7, Numpad8, Numpad9,
@@ -65,36 +65,42 @@ namespace LibInput
 	{
 		enum Modifier : uint16_t
 		{
-			LShift		= (1 << 0),
-			RShift		= (1 << 1),
-			LCtrl		= (1 << 2),
-			RCtrl		= (1 << 3),
-			LAlt		= (1 << 4),
-			RAlt		= (1 << 5),
-			CapsLock	= (1 << 6),
-			NumLock		= (1 << 7),
-			ScrollLock	= (1 << 8),
-			Pressed		= (1 << 9),
+			LShift     = (1 << 0),
+			RShift     = (1 << 1),
+			LCtrl      = (1 << 2),
+			RCtrl      = (1 << 3),
+			LAlt       = (1 << 4),
+			RAlt       = (1 << 5),
+			LSuper     = (1 << 6),
+			RSuper     = (1 << 7),
+			CapsLock   = (1 << 8),
+			NumLock    = (1 << 9),
+			ScrollLock = (1 << 10),
+			Pressed    = (1 << 11),
 		};
 
-		bool lshift()		const { return modifier & Modifier::LShift; }
-		bool rshift()		const { return modifier & Modifier::RShift; }
-		bool shift()		const { return lshift() || rshift(); }
+		bool lshift()      const { return modifier & Modifier::LShift; }
+		bool rshift()      const { return modifier & Modifier::RShift; }
+		bool shift()       const { return lshift() || rshift(); }
 
-		bool lctrl()		const { return modifier & Modifier::LCtrl; }
-		bool rctrl()		const { return modifier & Modifier::RCtrl; }
-		bool ctrl()			const { return lctrl() || rctrl(); }
+		bool lctrl()       const { return modifier & Modifier::LCtrl; }
+		bool rctrl()       const { return modifier & Modifier::RCtrl; }
+		bool ctrl()        const { return lctrl() || rctrl(); }
 
-		bool lalt()			const { return modifier & Modifier::LAlt; }
-		bool ralt()			const { return modifier & Modifier::RAlt; }
-		bool alt()			const { return lalt() || ralt(); }
+		bool lalt()        const { return modifier & Modifier::LAlt; }
+		bool ralt()        const { return modifier & Modifier::RAlt; }
+		bool alt()         const { return lalt() || ralt(); }
 
-		bool caps_lock()	const { return modifier & Modifier::CapsLock; }
-		bool num_lock()		const { return modifier & Modifier::NumLock; }
-		bool scroll_lock()	const { return modifier & Modifier::ScrollLock; }
+		bool lsuper()      const { return modifier & Modifier::LSuper; }
+		bool rsuper()      const { return modifier & Modifier::RSuper; }
+		bool super()       const { return lsuper() || rsuper(); }
 
-		bool pressed()		const { return modifier & Modifier::Pressed; }
-		bool released()		const { return !pressed(); }
+		bool caps_lock()   const { return modifier & Modifier::CapsLock; }
+		bool num_lock()    const { return modifier & Modifier::NumLock; }
+		bool scroll_lock() const { return modifier & Modifier::ScrollLock; }
+
+		bool pressed()     const { return modifier & Modifier::Pressed; }
+		bool released()    const { return !pressed(); }
 
 		uint16_t modifier;
 		uint8_t scancode;

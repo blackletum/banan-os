@@ -151,16 +151,18 @@ namespace Kernel::Input
 		uint16_t toggle_mask = 0;
 		switch (dummy_event.key)
 		{
-			case Key::LeftShift:	modifier_mask = KeyModifier::LShift;	break;
-			case Key::RightShift:	modifier_mask = KeyModifier::RShift;	break;
-			case Key::LeftCtrl:		modifier_mask = KeyModifier::LCtrl;		break;
-			case Key::RightCtrl:	modifier_mask = KeyModifier::RCtrl;		break;
-			case Key::LeftAlt:		modifier_mask = KeyModifier::LAlt;		break;
-			case Key::RightAlt:		modifier_mask = KeyModifier::RAlt;		break;
+			case Key::LeftShift:  modifier_mask = KeyModifier::LShift; break;
+			case Key::RightShift: modifier_mask = KeyModifier::RShift; break;
+			case Key::LeftCtrl:   modifier_mask = KeyModifier::LCtrl;  break;
+			case Key::RightCtrl:  modifier_mask = KeyModifier::RCtrl;  break;
+			case Key::LeftAlt:    modifier_mask = KeyModifier::LAlt;   break;
+			case Key::RightAlt:   modifier_mask = KeyModifier::RAlt;   break;
+			case Key::LeftSuper:  modifier_mask = KeyModifier::LSuper; break;
+			case Key::RightSuper: modifier_mask = KeyModifier::RSuper; break;
 
-			case Key::ScrollLock:	toggle_mask = KeyModifier::ScrollLock;	break;
-			case Key::NumLock:		toggle_mask = KeyModifier::NumLock;		break;
-			case Key::CapsLock:		toggle_mask = KeyModifier::CapsLock;	break;
+			case Key::ScrollLock: toggle_mask = KeyModifier::ScrollLock; break;
+			case Key::NumLock:    toggle_mask = KeyModifier::NumLock;    break;
+			case Key::CapsLock:   toggle_mask = KeyModifier::CapsLock;   break;
 
 			default: break;
 		}

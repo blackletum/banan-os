@@ -481,7 +481,7 @@ static void update_volume(const char* new_volume)
 
 void WindowServer::on_key_event(LibInput::KeyEvent event)
 {
-	if (event.key == LibInput::Key::Super)
+	if (event.key == LibInput::Key::LeftSuper)
 		m_is_mod_key_held = event.pressed();
 
 	if (event.pressed() && event.key == LibInput::Key::VolumeDown)

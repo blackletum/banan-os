@@ -394,11 +394,13 @@ namespace LibInput
 		TRY(s_name_to_key.insert("LeftShift"_sv,				Key::LeftShift));
 		TRY(s_name_to_key.insert("LessThan"_sv,				Key::LessThan));
 		TRY(s_name_to_key.insert("LShift"_sv,				Key::LeftShift));
+		TRY(s_name_to_key.insert("LSuper"_sv,					Key::LeftSuper));
 		TRY(s_name_to_key.insert("M"_sv,						Key::M));
 		TRY(s_name_to_key.insert("MediaNext"_sv,				Key::MediaNext));
 		TRY(s_name_to_key.insert("MediaPlayPause"_sv,		Key::MediaPlayPause));
 		TRY(s_name_to_key.insert("MediaPrevious"_sv,			Key::MediaPrevious));
 		TRY(s_name_to_key.insert("MediaStop"_sv,				Key::MediaStop));
+		TRY(s_name_to_key.insert("Application"_sv,				Key::Application));
 		TRY(s_name_to_key.insert("N"_sv,						Key::N));
 		TRY(s_name_to_key.insert("Negation"_sv,				Key::Negation));
 		TRY(s_name_to_key.insert("None"_sv,					Key::None));
@@ -443,6 +445,7 @@ namespace LibInput
 		TRY(s_name_to_key.insert("RightControl"_sv,			Key::RightCtrl));
 		TRY(s_name_to_key.insert("RightShift"_sv,			Key::RightShift));
 		TRY(s_name_to_key.insert("RShift"_sv,				Key::RightShift));
+		TRY(s_name_to_key.insert("RSuper"_sv,					Key::RightSuper));
 		TRY(s_name_to_key.insert("S"_sv,						Key::S));
 		TRY(s_name_to_key.insert("ScrollLock"_sv,			Key::ScrollLock));
 		TRY(s_name_to_key.insert("Section"_sv,				Key::Section));
@@ -450,7 +453,6 @@ namespace LibInput
 		TRY(s_name_to_key.insert("SingleQuote"_sv,			Key::SingleQuote));
 		TRY(s_name_to_key.insert("Slash"_sv,					Key::Slash));
 		TRY(s_name_to_key.insert("Space"_sv,					Key::Space));
-		TRY(s_name_to_key.insert("Super"_sv,					Key::Super));
 		TRY(s_name_to_key.insert("T"_sv,						Key::T));
 		TRY(s_name_to_key.insert("Tab"_sv,					Key::Tab));
 		TRY(s_name_to_key.insert("Tilde"_sv,					Key::Tilde));
