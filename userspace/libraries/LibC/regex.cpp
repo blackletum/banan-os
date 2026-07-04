@@ -346,13 +346,13 @@ int regcomp(regex_t* __restrict preg, const char* __restrict pattern, int cflags
 				fprintf(stddbg, "regcomp: alternations are not supported");
 				REGCOMP_ERROR(REG_BADPAT);
 			case '^':
-				if (!is_extended && i != 0)
+				if (!is_extended || i != 0)
 					goto case_default;
 				if (!append_element(current, { _re_anchor_begin, { 1, 1 }, {} }))
 					REGCOMP_ERROR(REG_ESPACE);
 				break;
 			case '$':
-				if (!is_extended && pattern[i + 1] != '\0')
+				if (!is_extended || pattern[i + 1] != '\0')
 					goto case_default;
 				if (!append_element(current, { _re_anchor_end, { 1, 1 }, {} }))
 					REGCOMP_ERROR(REG_ESPACE);
@@ -368,7 +368,7 @@ int regcomp(regex_t* __restrict preg, const char* __restrict pattern, int cflags
 					case '(': goto case_openparen;
 					case ')': goto case_closeparen;
 					case '{': goto case_openbrace;
-					case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
+					case '1' ... '9':
 						fprintf(stddbg, "regcomp: back-references are not supported");
 						REGCOMP_ERROR(REG_BADPAT);
 				}
