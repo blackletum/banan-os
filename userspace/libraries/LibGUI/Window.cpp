@@ -24,6 +24,12 @@ namespace LibGUI
 
 	BAN::ErrorOr<BAN::UniqPtr<Window>> Window::create(uint32_t width, uint32_t height, BAN::StringView title, Attributes attributes)
 	{
+		const auto get_current_ms = []() -> uint64_t {
+			timespec ts;
+			clock_gettime(CLOCK_MONOTONIC, &ts);
+			return ts.tv_sec * 1'000 + ts.tv_nsec / 1'000'000;
+		};
+
 		int server_fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
 		if (server_fd == -1)
 			return BAN::Error::from_errno(errno);
@@ -38,8 +44,7 @@ namespace LibGUI
 		if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &epoll_event) == -1)
 			return BAN::Error::from_errno(errno);
 
-		timespec start_time;
-		clock_gettime(CLOCK_MONOTONIC, &start_time);
+		const uint64_t timeout_ms = get_current_ms() + 1000;
 
 		for (;;)
 		{
@@ -49,15 +54,14 @@ namespace LibGUI
 			if (connect(server_fd, (sockaddr*)&server_address, sizeof(server_address)) == 0)
 				break;
 
-			timespec current_time;
-			clock_gettime(CLOCK_MONOTONIC, &current_time);
-			time_t duration_s = (current_time.tv_sec - start_time.tv_sec) + (current_time.tv_nsec >= start_time.tv_nsec);
-			if (duration_s > 1)
+			const uint64_t current_ms = get_current_ms();
+			if (current_ms > timeout_ms)
 				return BAN::Error::from_errno(ETIMEDOUT);
 
-			timespec sleep_time;
-			sleep_time.tv_sec = 0;
-			sleep_time.tv_nsec = 1'000'000;
+			const timespec sleep_time {
+				.tv_sec = 0,
+				.tv_nsec = 1'000'000,
+			};
 			nanosleep(&sleep_time, nullptr);
 		}
 
@@ -72,21 +76,25 @@ namespace LibGUI
 		TRY(create_packet.title.append(title));
 		window->send_packet(create_packet, __FUNCTION__);
 
-		int32_t x, y;
-		bool resized { false }, moved { false };
-		window->set_resize_window_event_callback([&]() { resized = true; });
-		window->set_window_move_event_callback([&](auto event) { x = event.x; y = event.y; moved = true; });
-		while (!resized || !moved)
+		window->m_initializing = true;
+		while (window->m_initializing)
 		{
-			// FIXME: timeout?
-			window->wait_events();
-			window->poll_events();
-		}
-		window->set_resize_window_event_callback({});
-		window->set_window_move_event_callback({});
+			const uint64_t current_ms = get_current_ms();
+			if (current_ms > timeout_ms)
+				return BAN::Error::from_errno(ETIMEDOUT);
 
-		// hack to resend move event :^)
-		window->set_position(x, y);
+			const uint64_t wait_ms = timeout_ms - current_ms;
+			const timespec timeout {
+				.tv_sec = static_cast<time_t>(wait_ms / 1000),
+				.tv_nsec = static_cast<long>((wait_ms % 1000) * 1'000'000),
+			};
+
+			window->wait_events(&timeout);
+			window->poll_events();
+
+			if (window->m_init_failed)
+				return BAN::Error::from_literal("failed to initialize window");
+		}
 
 		server_closer.disable();
 		epoll_closer.disable();
@@ -361,7 +369,40 @@ namespace LibGUI
 					break;
 
 				const auto packet_span = in_span.slice(0, header.size);
-				switch (header.type)
+
+				if (m_initializing)
+				{
+					if (header.type == PacketType::ResizeWindowEvent)
+					{
+						if (auto event_or_error = EventPacket::ResizeWindowEvent::deserialize(packet_span); event_or_error.is_error())
+							m_init_failed = true;
+						else if (handle_resize_event(event_or_error.release_value()).is_error())
+							m_init_failed = true;
+						else if (m_temp_buffer.size() + m_in_buffer_size > m_in_buffer.size())
+							m_init_failed = true;
+						else
+						{
+							memmove(m_in_buffer.data() + m_temp_buffer.size(), m_in_buffer.data(), m_in_buffer.size());
+							memcpy(m_in_buffer.data(), m_temp_buffer.data(), m_temp_buffer.size());
+							m_in_buffer_size += m_temp_buffer.size();
+							m_temp_buffer.clear();
+							m_initializing = false;
+						}
+						return;
+					}
+					else if (header.type == PacketType::DestroyWindowEvent || header.type == PacketType::CloseWindowEvent)
+					{
+						m_init_failed = true;
+						return;
+					}
+					else
+					{
+						const size_t old_size = m_temp_buffer.size();
+						MUST(m_temp_buffer.resize(old_size + packet_span.size()));
+						memcpy(m_temp_buffer.data() + old_size, packet_span.data(), packet_span.size());
+					}
+				}
+				else switch (header.type)
 				{
 #define TRY_OR_BREAK(...) ({ auto&& e = (__VA_ARGS__); if (e.is_error()) break; e.release_value(); })
 					case PacketType::DestroyWindowEvent:

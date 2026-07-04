@@ -105,6 +105,10 @@ namespace LibGUI
 		const int m_server_fd;
 		const int m_epoll_fd;
 
+		bool m_initializing { false };
+		bool m_init_failed  { false };
+		BAN::Vector<uint8_t> m_temp_buffer;
+
 		bool m_handling_socket_error { false };
 
 		Attributes m_attributes;
