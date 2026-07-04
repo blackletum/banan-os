@@ -112,8 +112,8 @@ namespace Kernel
 			paddr = Heap::get().take_free_page();
 			if (paddr == 0)
 				return BAN::Error::from_errno(ENOMEM);
-			PageTable::with_fast_page(paddr, [&] {
-				memset(PageTable::fast_page_as_ptr(), 0x00, PAGE_SIZE);
+			PageTable::with_per_cpu_fast_page(paddr, [&](void* addr) {
+				memset(addr, 0x00, PAGE_SIZE);
 			});
 			m_object->paddrs[(vaddr - m_vaddr) / PAGE_SIZE] = paddr;
 		}
