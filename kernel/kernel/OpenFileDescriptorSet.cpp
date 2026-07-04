@@ -401,11 +401,19 @@ namespace Kernel
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::close(int fd)
 	{
-		LockGuard _(m_mutex);
+		BAN::RefPtr<OpenFileDescription> open_file;
 
-		TRY(validate_fd(fd));
+		{
+			LockGuard _(m_mutex);
 
-		auto& open_file = m_open_files[fd];
+			TRY(validate_fd(fd));
+
+			open_file = m_open_files[fd];
+
+			m_open_files[fd]->file.inode->on_close(m_open_files[fd]->status_flags);
+			m_open_files[fd] = {};
+			remove_cloexec(fd);
+		}
 
 		if (auto& flock = open_file->flock; Thread::current().has_process() && flock.lockers.contains(Process::current().pid()))
 		{
@@ -428,10 +436,6 @@ namespace Kernel
 				s_fcntl_lock_thread_blocker.unblock();
 			}
 		}
-
-		open_file->file.inode->on_close(open_file->status_flags);
-		open_file = {};
-		remove_cloexec(fd);
 
 		return {};
 	}
