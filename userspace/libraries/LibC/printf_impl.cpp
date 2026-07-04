@@ -661,7 +661,7 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 
 				if (!options.left_justified)
 					for (int i = length; i < options.width; i++)
-						BAN_PRINTF_PUTC(' ');
+						BAN_PRINTF_PUTC(options.zero_padded ? '0' : ' ');
 
 				for (int i = 0; i < length; i++)
 					BAN_PRINTF_PUTC(string[i]);
