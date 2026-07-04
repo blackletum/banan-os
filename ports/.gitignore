@@ -2,3 +2,5 @@
 !*/patches/
 !*/build.sh
 .installed_ports
+config.sub
+*-banan_os-meson.txt
