@@ -326,6 +326,7 @@ int main()
 				if (auto ret = window_server.add_client_fd(client_fd); ret.is_error())
 				{
 					dwarnln("add_client: {}", ret.error());
+					epoll_ctl(g_epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
 					close(client_fd);
 					continue;
 				}

@@ -31,8 +31,6 @@ Window::~Window()
 			total_sent += nsend;
 		}
 	}
-
-	close(m_client_fd);
 }
 
 BAN::ErrorOr<void> Window::initialize(BAN::StringView title, uint32_t width, uint32_t height)
