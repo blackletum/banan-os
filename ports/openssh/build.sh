@@ -9,12 +9,9 @@ MAKE_INSTALL_TARGETS=('install-nokeys')
 CONFIGURE_OPTIONS=(
 	'--sysconfdir=/etc'
 	'--sbindir=/usr/bin'
+	'--disable-utmpx'
 	'CFLAGS=-Wno-deprecated-declarations'
 )
-
-post_configure() {
-	sed -i 's|#define HAVE_IFADDRS_H 1|/* #undef HAVE_IFADDRS_H */|' config.h || exit 1
-}
 
 post_install() {
 	passwd="$BANAN_SYSROOT/etc/passwd"

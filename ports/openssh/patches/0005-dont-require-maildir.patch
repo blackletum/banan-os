@@ -1,0 +1,17 @@
+diff -ruN openssh-10.2p1/session.c openssh-10.2p1-banan_os/session.c
+--- openssh-10.2p1/session.c	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/session.c	2025-11-10 00:25:55.532121660 +0200
+@@ -1001,11 +1001,13 @@
+ # endif /* HAVE_CYGWIN */
+ #endif /* HAVE_LOGIN_CAP */
+ 
++#ifdef _PATH_MAILDIR
+ 	if (!options.use_pam) {
+ 		snprintf(buf, sizeof buf, "%.200s/%.50s",
+ 		    _PATH_MAILDIR, pw->pw_name);
+ 		child_set_env(&env, &envsize, "MAIL", buf);
+ 	}
++#endif
+ 
+ 	/* Normal systems set SHELL by default. */
+ 	child_set_env(&env, &envsize, "SHELL", shell);

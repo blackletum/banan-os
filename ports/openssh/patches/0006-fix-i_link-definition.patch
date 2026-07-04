@@ -1,0 +1,14 @@
+diff -ruN openssh-10.2p1/sftp.c openssh-10.2p1-banan_os/sftp.c
+--- openssh-10.2p1/sftp.c	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/sftp.c	2025-11-10 00:25:55.532202816 +0200
+@@ -124,6 +124,10 @@
+ #define VIEW_FLAGS	(LS_LONG_VIEW|LS_SHORT_VIEW|LS_NUMERIC_VIEW|LS_SI_UNITS)
+ #define SORT_FLAGS	(LS_NAME_SORT|LS_TIME_SORT|LS_SIZE_SORT)
+ 
++#ifdef I_LINK
++#undef I_LINK
++#endif
++
+ /* Commands for interactive mode */
+ enum sftp_command {
+ 	I_CHDIR = 1,

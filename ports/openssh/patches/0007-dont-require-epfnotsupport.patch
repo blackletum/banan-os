@@ -1,0 +1,30 @@
+diff -ruN openssh-10.2p1/openbsd-compat/bindresvport.c openssh-10.2p1-banan_os/openbsd-compat/bindresvport.c
+--- openssh-10.2p1/openbsd-compat/bindresvport.c	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/openbsd-compat/bindresvport.c	2025-11-10 00:32:48.596625576 +0200
+@@ -84,7 +84,11 @@
+ 		salen = sizeof(struct sockaddr_in6);
+ 		portp = &in6->sin6_port;
+ 	} else {
++#ifdef EPFNOSUPPORT
+ 		errno = EPFNOSUPPORT;
++#else
++		errno = EAFNOSUPPORT;
++#endif
+ 		return (-1);
+ 	}
+ 	sa->sa_family = af;
+diff -ruN openssh-10.2p1/openbsd-compat/rresvport.c openssh-10.2p1-banan_os/openbsd-compat/rresvport.c
+--- openssh-10.2p1/openbsd-compat/rresvport.c	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/openbsd-compat/rresvport.c	2025-11-10 00:32:48.610715933 +0200
+@@ -76,7 +76,11 @@
+ 		portp = &((struct sockaddr_in6 *)sa)->sin6_port;
+ 		break;
+ 	default:
++#ifdef EPFNOSUPPORT
+ 		errno = EPFNOSUPPORT;
++#else
++		errno = EAFNOSUPPORT;
++#endif
+ 		return (-1);
+ 	}
+ 	sa->sa_family = af;
