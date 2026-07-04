@@ -262,14 +262,44 @@ static void floating_point_to_exponent_string(char* buffer, T value, bool upper,
 template<BAN::floating_point T>
 static void floating_point_to_maybe_exponent_string(char* buffer, T value, bool upper, const format_options_t options)
 {
-	int percision = 6;
-	if (options.percision != -1)
-		percision = options.percision;
+	int percision = options.percision;
+	if (percision == -1)
+		percision = 6;
+	if (percision == 0)
+		percision = 1;
 
-	const int exponent = (value != static_cast<T>(0.0)) ? BAN::Math::floor<T>(BAN::Math::log10(value)) : 0;
-	if (exponent < -4 || exponent >= percision)
-		return floating_point_to_exponent_string(buffer, value, upper, options);
-	return floating_point_to_string(buffer, value, upper, options);
+	int exponent = 0;
+	if (value > (T)0.0)
+		exponent = +BAN::Math::floor<T>(BAN::Math::log10(BAN::Math::abs(+value)));
+	else if (value < (T)0.0)
+		exponent = -BAN::Math::floor<T>(BAN::Math::log10(BAN::Math::abs(-value)));
+
+	char* frac_end;
+	format_options_t new_options = options;
+	if (percision > exponent && exponent >= -4)
+	{
+		new_options.percision = percision - (exponent + 1);
+		floating_point_to_string(buffer, value, upper, new_options);
+		frac_end = buffer + strlen(buffer) - 1;
+	}
+	else
+	{
+		new_options.percision = percision - 1;
+		floating_point_to_exponent_string(buffer, value, upper, new_options);
+		frac_end = strchr(buffer, upper ? 'E' : 'e') - 1;
+	}
+
+	// do not trim fractional part in alternate mode
+	// if percision is 0, there is no fractional part
+	if (new_options.alternate_form || new_options.percision == 0)
+		return;
+
+	char* ptr = frac_end;
+	while (*ptr == '0')
+		ptr--;
+	if (*ptr == '.')
+		ptr--;
+	strcpy(ptr, frac_end);
 }
 
 extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun)(int, void*), void* data)
