@@ -170,21 +170,49 @@ int fclose(FILE* file)
 
 static mode_t parse_mode_string(const char* mode_str)
 {
-	size_t len = strlen(mode_str);
-	if (len == 0 || len > 3)
-		return 0;
-	if (len == 3 && mode_str[1] == mode_str[2])
-		return 0;
-	if (strspn(mode_str + 1, "tb+") != len - 1)
-		return 0;
-	bool plus = (mode_str[1] == '+' || mode_str[2] == '+');
+	mode_t mode = 0;
+
 	switch (mode_str[0])
 	{
-		case 'r': return plus ? O_RDWR : O_RDONLY;
-		case 'w': return plus ? O_RDWR | O_CREAT | O_TRUNC : O_WRONLY | O_CREAT | O_TRUNC;
-		case 'a': return plus ? O_RDWR | O_CREAT | O_APPEND : O_WRONLY | O_CREAT | O_APPEND;
+		case 'r':
+			break;
+		case 'w':
+			mode |= O_CREAT | O_TRUNC;
+			break;
+		case 'a':
+			mode |= O_CREAT | O_APPEND;
+			break;
+		default:
+			return 0;
 	}
-	return 0;
+
+	bool plus = false;
+	for (size_t i = 1; mode_str[i]; i++)
+	{
+		switch (mode_str[i])
+		{
+			case 'b':
+			case 't':
+				break;
+			case 'e':
+				mode |= O_CLOEXEC;
+				break;
+			case 'x':
+				mode |= O_CREAT | O_EXCL;
+				break;
+			case '+':
+				mode |= O_RDWR;
+				plus = true;
+				break;
+			default:
+				return 0;
+		}
+	}
+
+	if (!plus)
+		mode |= (mode_str[0] == 'r') ? O_RDONLY : O_WRONLY;
+
+	return mode;
 }
 
 FILE* fdopen(int fd, const char* mode_str)
