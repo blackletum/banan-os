@@ -1,7 +1,7 @@
-diff -ruN expat-2.7.1/configure expat-2.7.1-banan_os/configure
---- expat-2.7.1/configure	2025-03-27 21:46:37.000000000 +0200
-+++ expat-2.7.1-banan_os/configure	2025-08-10 00:50:27.773898797 +0300
-@@ -6679,6 +6679,10 @@
+diff -ruN expat-2.8.2/configure expat-2.8.2-banan_os/configure
+--- expat-2.8.2/configure	2026-06-25 17:12:55.000000000 +0300
++++ expat-2.8.2-banan_os/configure	2026-07-05 13:20:15.494500768 +0300
+@@ -7086,6 +7086,10 @@
    lt_cv_deplibs_check_method=pass_all
    ;;
  
@@ -12,7 +12,7 @@ diff -ruN expat-2.7.1/configure expat-2.7.1-banan_os/configure
  beos*)
    lt_cv_deplibs_check_method=pass_all
    ;;
-@@ -12479,6 +12483,16 @@
+@@ -12951,6 +12955,16 @@
    esac
    ;;
  
@@ -29,7 +29,7 @@ diff -ruN expat-2.7.1/configure expat-2.7.1-banan_os/configure
  beos*)
    library_names_spec='$libname$shared_ext'
    dynamic_linker="$host_os ld.so"
-@@ -18079,6 +18093,16 @@
+@@ -18711,6 +18725,16 @@
    esac
    ;;
  

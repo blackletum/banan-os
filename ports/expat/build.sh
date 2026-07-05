@@ -1,6 +1,10 @@
 #!/bin/bash ../install.sh
 
 NAME='expat'
-VERSION='2.7.1'
-DOWNLOAD_URL="https://github.com/libexpat/libexpat/releases/download/R_2_7_1/expat-$VERSION.tar.gz#0cce2e6e69b327fc607b8ff264f4b66bdf71ead55a87ffd5f3143f535f15cfa2"
+VERSION='2.8.2'
+DOWNLOAD_URL="https://github.com/libexpat/libexpat/releases/download/R_${VERSION//./_}/expat-$VERSION.tar.gz#ef7d1994f533c9e7343d6c19f31064fc8ebbcbcaa144be3812b4f43052a05f4c"
 CONFIG_SUB=('conftools/config.sub')
+CONFIGURE_OPTIONS=(
+	'--disable-static'
+	'--with-dev-urandom'
+)
