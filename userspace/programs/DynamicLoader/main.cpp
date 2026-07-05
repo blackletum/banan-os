@@ -430,9 +430,6 @@ static void handle_tls_relocation(const LoadedElf& elf, const RelocT& reloc)
 	if (symbol_elf == nullptr)
 		print_error_and_exit("i don't think this is supposed to happen 2", 0);
 
-	if (symbol_elf->tls_addr == nullptr)
-		print_error_and_exit("i don't think this is supposed to happen 3", 0);
-
 #if defined(__x86_64__)
 	switch (ELF64_R_TYPE(reloc.r_info))
 	{
@@ -1160,6 +1157,7 @@ static LoadedElf& load_elf(const char* path, int fd)
 			case PT_GNU_RELRO:
 				break;
 			case PT_TLS:
+				program_header.p_vaddr += base;
 				elf.tls_header = program_header;
 				break;
 			case PT_LOAD:
@@ -1218,7 +1216,7 @@ struct MasterTLS
 	size_t module_count;
 };
 
-static MasterTLS initialize_master_tls()
+static MasterTLS initialize_tls_stage1()
 {
 	constexpr auto round =
 		[](size_t a, size_t b) -> size_t
@@ -1243,28 +1241,6 @@ static MasterTLS initialize_master_tls()
 		tls_m_size = tls_header.p_memsz;
 
 		module_count++;
-	}
-
-	{
-		const sys_mmap_t mmap_args {
-			.addr = nullptr,
-			.len = sizeof(_dynamic_tls_t) + s_max_loaded_files * sizeof(_dynamic_tls_entry_t),
-			.prot = PROT_READ | PROT_WRITE,
-			.flags = MAP_ANONYMOUS | MAP_PRIVATE,
-			.fildes = -1,
-			.off = 0,
-		};
-
-		const auto ret = syscall(SYS_MMAP, &mmap_args);
-		if (ret < 0)
-			print_error_and_exit("failed to allocate dynamic TLS", ret);
-		s_dynamic_tls = reinterpret_cast<_dynamic_tls_t*>(ret);
-
-		*s_dynamic_tls = {
-			.lock = 0,
-			.entry_count = 0,
-			.entries = reinterpret_cast<_dynamic_tls_entry_t*>(s_dynamic_tls + 1),
-		};
 	}
 
 	if (module_count == 0)
@@ -1300,19 +1276,8 @@ static MasterTLS initialize_master_tls()
 
 		tls_offset = round(tls_offset + tls_header.p_memsz, tls_header.p_align);
 
-		uint8_t* tls_buffer = master_tls_addr + master_tls_size - tls_offset;
-
-		if (tls_header.p_filesz > 0)
-		{
-			const int fd = s_loaded_files[i].fd;
-			if (auto ret = syscall(SYS_PREAD, fd, tls_buffer, tls_header.p_filesz, tls_header.p_offset); ret != static_cast<long>(tls_header.p_filesz))
-				print_error_and_exit("failed to read TLS data", ret);
-		}
-
-		memset(tls_buffer + tls_header.p_filesz, 0, tls_header.p_memsz - tls_header.p_filesz);
-
 		auto& elf = s_loaded_files[i];
-		elf.tls_addr = tls_buffer;
+		elf.tls_addr = master_tls_addr + master_tls_size - tls_offset;
 		elf.tls_module = s_tls_module++;
 		elf.tls_offset = tls_offset;
 	}
@@ -1324,8 +1289,49 @@ static MasterTLS initialize_master_tls()
 	};
 }
 
-static void initialize_tls(MasterTLS master_tls)
+static void allocate_dynamic_tls()
 {
+	const sys_mmap_t mmap_args {
+		.addr = nullptr,
+		.len = sizeof(_dynamic_tls_t) + s_max_loaded_files * sizeof(_dynamic_tls_entry_t),
+		.prot = PROT_READ | PROT_WRITE,
+		.flags = MAP_ANONYMOUS | MAP_PRIVATE,
+		.fildes = -1,
+		.off = 0,
+	};
+
+	const auto ret = syscall(SYS_MMAP, &mmap_args);
+	if (ret < 0)
+		print_error_and_exit("failed to allocate dynamic TLS", ret);
+	s_dynamic_tls = reinterpret_cast<_dynamic_tls_t*>(ret);
+
+	*s_dynamic_tls = {
+		.lock = 0,
+		.entry_count = 0,
+		.entries = reinterpret_cast<_dynamic_tls_entry_t*>(s_dynamic_tls + 1),
+	};
+}
+
+static void initialize_tls_memory()
+{
+	for (size_t i = 0; i < s_loaded_file_count; i++)
+	{
+		const auto& tls_header = s_loaded_files[i].tls_header;
+		if (tls_header.p_type != PT_TLS)
+			continue;
+
+		auto& elf = s_loaded_files[i];
+		memcpy(elf.tls_addr, reinterpret_cast<void*>(tls_header.p_vaddr), tls_header.p_filesz);
+		memset(elf.tls_addr + tls_header.p_filesz, 0, tls_header.p_memsz - tls_header.p_filesz);
+	}
+}
+
+static void initialize_tls_stage2(MasterTLS master_tls)
+{
+	allocate_dynamic_tls();
+
+	initialize_tls_memory();
+
 	const size_t tls_size = master_tls.size + sizeof(uthread);
 
 	uint8_t* tls_addr;
@@ -1498,14 +1504,6 @@ static void register_fini_funcs(LoadedElf& elf, bool is_main_elf)
 
 static void load_dynamic_tls(LoadedElf& elf)
 {
-	if (elf.tls_header.p_type != PT_TLS)
-		return;
-	if (elf.tls_module != 0)
-		print_error_and_exit("TLS module already loaded??", 0);
-
-	elf.tls_module = s_tls_module++;
-	elf.tls_offset = 0;
-
 	{
 		const sys_mmap_t mmap_args {
 			.addr = nullptr,
@@ -1519,11 +1517,10 @@ static void load_dynamic_tls(LoadedElf& elf)
 		const auto ret = syscall(SYS_MMAP, &mmap_args);
 		if (ret < 0)
 			print_error_and_exit("failed to allocate dynamic TLS", ret);
-		elf.tls_addr = reinterpret_cast<uint8_t*>(ret);
 
+		elf.tls_addr = reinterpret_cast<uint8_t*>(ret);
+		memcpy(elf.tls_addr, reinterpret_cast<void*>(elf.tls_header.p_vaddr), elf.tls_header.p_filesz);
 		memset(elf.tls_addr + elf.tls_header.p_filesz, 0, elf.tls_header.p_memsz - elf.tls_header.p_filesz);
-		if (const auto ret = syscall(SYS_PREAD, elf.fd, elf.tls_addr, elf.tls_header.p_filesz, elf.tls_header.p_offset); ret < static_cast<long>(elf.tls_header.p_filesz))
-			print_error_and_exit("failed to read TLS data", 0);
 	}
 
 	int expected = 0;
@@ -1599,10 +1596,19 @@ void* __dlopen(const char* file, int mode)
 	if (!elf.is_relocating && !elf.is_calling_init)
 	{
 		for (size_t i = old_loaded_count; i < s_loaded_file_count; i++)
-			load_dynamic_tls(s_loaded_files[i]);
-
+		{
+			if (s_loaded_files[i].tls_header.p_type != PT_TLS)
+				continue;
+			s_loaded_files[i].tls_module = s_tls_module++;
+			s_loaded_files[i].tls_offset = 0;
+		}
 
 		relocate_elf(elf, lazy);
+
+		for (size_t i = old_loaded_count; i < s_loaded_file_count; i++)
+			if (s_loaded_files[i].tls_header.p_type == PT_TLS)
+				load_dynamic_tls(s_loaded_files[i]);
+
 		call_init_funcs(elf, false);
 		register_fini_funcs(elf, false);
 		syscall(SYS_CLOSE, elf.fd);
@@ -1781,7 +1787,8 @@ uintptr_t _entry(int argc, char* argv[], char* envp[])
 	auto& elf = load_elf(canonical, execfd);
 	fini_random();
 
-	const auto master_tls = initialize_master_tls();
+	const auto master_tls = initialize_tls_stage1();
+
 	relocate_elf(elf, true);
 
 	// do copy relocations
@@ -1792,7 +1799,8 @@ uintptr_t _entry(int argc, char* argv[], char* envp[])
 		for (size_t i = 0; i < elf.relasz / elf.relaent; i++)
 			handle_copy_relocation(elf, *reinterpret_cast<ElfNativeRelocationA*>(elf.rela + i * elf.relaent));
 
-	initialize_tls(master_tls);
+	initialize_tls_stage2(master_tls);
+
 	initialize_environ(envp);
 	call_init_funcs(elf, true);
 	register_fini_funcs(elf, true);
