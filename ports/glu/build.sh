@@ -6,6 +6,8 @@ DOWNLOAD_URL="https://archive.mesa3d.org/glu/glu-$VERSION.tar.xz#bd43fe12f374b11
 DEPENDENCIES=('mesa')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
+	'-Dbuildtype=release'
+	'-Dgl_provider=osmesa'
 )
 
 configure() {
