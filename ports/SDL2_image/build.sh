@@ -3,7 +3,7 @@
 NAME='SDL2_image'
 VERSION='2.8.8'
 DOWNLOAD_URL="https://github.com/libsdl-org/SDL_image/releases/download/release-$VERSION/SDL2_image-$VERSION.tar.gz#2213b56fdaff2220d0e38c8e420cbe1a83c87374190cba8c70af2156097ce30a"
-DEPENDENCIES=('sdl2-compat' 'libpng' 'libjpeg' 'libtiff' 'libwebp')
+DEPENDENCIES=('sdl2-compat' 'libpng' 'libjpeg-turbo' 'libtiff' 'libwebp')
 
 configure() {
 	cmake --fresh -S . -B build -G Ninja \
