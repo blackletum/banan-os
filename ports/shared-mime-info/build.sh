@@ -6,6 +6,7 @@ DOWNLOAD_URL="https://gitlab.freedesktop.org/xdg/shared-mime-info/-/archive/$VER
 DEPENDENCIES=('glib' 'libxml2')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
+	'-Dbuildtype=release'
 	'-Dbuild-tests=false'
 	'-Dbuild-translations=false'
 	'-Dupdate-mimedb=true'

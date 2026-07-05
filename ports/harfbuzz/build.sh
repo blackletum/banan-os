@@ -6,6 +6,7 @@ DOWNLOAD_URL="https://github.com/harfbuzz/harfbuzz/releases/download/$VERSION/ha
 DEPENDENCIES=('glib' 'freetype' 'icu')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
+	'-Dbuildtype=release'
 	'-Dtests=disabled'
 	'-Dcairo=disabled'
 )

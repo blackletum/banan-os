@@ -6,6 +6,7 @@ DOWNLOAD_URL="https://www.x.org/releases/individual/proto/xorgproto-$VERSION.tar
 DEPENDENCIES=('util-macros')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
+	'-Dbuildtype=release'
 )
 
 configure() {

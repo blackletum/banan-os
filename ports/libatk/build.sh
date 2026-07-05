@@ -7,6 +7,7 @@ TAR_CONTENT="at-spi2-core-$VERSION"
 DEPENDENCIES=('glib' 'dbus' 'libxml2' 'libX11' 'libXtst')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
+	'-Dbuildtype=release'
 )
 
 configure() {

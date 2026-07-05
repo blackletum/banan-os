@@ -7,6 +7,7 @@ TAR_CONTENT="libxml2-v$VERSION"
 DEPENDENCIES=('zlib' 'libiconv')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
+	'-Dbuildtype=release'
 )
 
 configure() {

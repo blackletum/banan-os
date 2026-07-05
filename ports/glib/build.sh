@@ -6,6 +6,7 @@ DOWNLOAD_URL="https://download.gnome.org/sources/glib/${VERSION%.*}/glib-$VERSIO
 DEPENDENCIES=('pcre2' 'libffi' 'zlib' 'libiconv')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
+	'-Dbuildtype=release'
 	'-Dxattr=false'
 )
 

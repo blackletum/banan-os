@@ -6,6 +6,7 @@ DOWNLOAD_URL="https://gitlab.gnome.org/GNOME/pango/-/archive/$VERSION/pango-$VER
 DEPENDENCIES=('glib' 'fontconfig' 'cairo' 'fribidi' 'libXft')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
+	'-Dbuildtype=release'
 	'-Dbuild-testsuite=false'
 )
 

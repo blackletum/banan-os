@@ -6,6 +6,7 @@ DOWNLOAD_URL="https://gitlab.gnome.org/GNOME/gtk/-/archive/$VERSION/gtk-$VERSION
 DEPENDENCIES=('glib' 'gdk-pixbuf' 'pango' 'libatk' 'libepoxy' 'libXrandr' 'libXcursor' 'libXinerama')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
+	'-Dbuildtype=release'
 	'-Dtests=false'
 	'-Dexamples=false'
 	'-Dintrospection=false'

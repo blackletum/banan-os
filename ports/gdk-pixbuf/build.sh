@@ -6,6 +6,7 @@ DOWNLOAD_URL="https://gitlab.gnome.org/GNOME/gdk-pixbuf/-/archive/$VERSION/gdk-p
 DEPENDENCIES=('glib' 'libpng' 'libjpeg-turbo' 'libtiff' 'shared-mime-info')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
+	'-Dbuildtype=release'
 	'-Dtests=false'
 	'-Dman=false'
 )

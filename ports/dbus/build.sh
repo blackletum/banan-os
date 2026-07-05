@@ -6,6 +6,7 @@ DOWNLOAD_URL="https://dbus.freedesktop.org/releases/dbus/dbus-$VERSION.tar.xz#0b
 DEPENDENCIES=('glib' 'expat')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
+	'-Dbuildtype=release'
 	'-Depoll=disabled' # linux only
 	'-Dintrusive_tests=false'
 	'-Dinstalled_tests=false'

@@ -6,6 +6,7 @@ DOWNLOAD_URL="https://cairographics.org/releases/cairo-$VERSION.tar.xz#445ed8208
 DEPENDENCIES=('libpng' 'pixman' 'fontconfig' 'glib' 'libX11' 'libXrender' 'libXext')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
+	'-Dbuildtype=release'
 	'-Dtests=disabled'
 )
 

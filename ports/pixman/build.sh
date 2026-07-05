@@ -6,6 +6,7 @@ DOWNLOAD_URL="https://cairographics.org/releases/pixman-$VERSION.tar.gz#d09c44eb
 DEPENDENCIES=('glib' 'libpng')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
+	'-Dbuildtype=release'
 )
 
 configure() {

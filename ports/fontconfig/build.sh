@@ -6,6 +6,7 @@ DOWNLOAD_URL="https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/$VE
 DEPENDENCIES=('harfbuzz' 'freetype' 'expat' 'libiconv')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
+	'-Dbuildtype=release'
 	'-Dtests=disabled'
 	'-Dnls=disabled'
 )
