@@ -8,6 +8,7 @@ CONFIGURE_OPTIONS=(
 	'--with-data-dir=/usr/share/tuxracer'
 	"--with-sdl-prefix=$BANAN_SYSROOT/usr"
 	'--with-tcl-lib-name=tcl8.6'
+	'--with-gl-lib-name=OSMesa'
 	'--without-x'
 )
 
