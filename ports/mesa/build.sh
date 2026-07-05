@@ -1,8 +1,8 @@
 #!/bin/bash ../install.sh
 
 NAME='mesa'
-VERSION='25.0.7'
-DOWNLOAD_URL="https://archive.mesa3d.org/mesa-$VERSION.tar.xz#592272df3cf01e85e7db300c449df5061092574d099da275d19e97ef0510f8a6"
+VERSION='26.1.4'
+DOWNLOAD_URL="https://archive.mesa3d.org/mesa-$VERSION.tar.xz#072705caa9adf4740f1489194b13e278ad959166863b5271fe423a86353c9ab6"
 DEPENDENCIES=('zlib' 'zstd' 'expat' 'libX11' 'libXext')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
