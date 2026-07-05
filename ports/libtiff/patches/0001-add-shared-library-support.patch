@@ -1,7 +1,7 @@
-diff -ruN tiff-4.7.0/configure tiff-4.7.0-banan_os/configure
---- tiff-4.7.0/configure	2024-09-11 10:42:32.000000000 +0300
-+++ tiff-4.7.0-banan_os/configure	2025-06-11 14:56:13.977026933 +0300
-@@ -6312,6 +6312,10 @@
+diff -ruN libtiff-4.7.2/configure libtiff-4.7.2-banan_os/configure
+--- libtiff-4.7.2/configure	2026-06-27 16:59:57.000000000 +0300
++++ libtiff-4.7.2-banan_os/configure	2026-07-05 13:26:12.435676263 +0300
+@@ -7131,6 +7131,10 @@
    lt_cv_deplibs_check_method=pass_all
    ;;
  
@@ -12,19 +12,7 @@ diff -ruN tiff-4.7.0/configure tiff-4.7.0-banan_os/configure
  beos*)
    lt_cv_deplibs_check_method=pass_all
    ;;
-@@ -10492,6 +10496,11 @@
-       esac
-       ;;
- 
-+    banan_os*)
-+      archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags $wl-soname $wl$soname -o $lib'
-+      link_all_deplibs=yes
-+      ;;
-+
-     beos*)
-       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
- 	allow_undefined_flag=unsupported
-@@ -12059,6 +12068,16 @@
+@@ -12821,6 +12825,16 @@
    esac
    ;;
  
@@ -41,19 +29,7 @@ diff -ruN tiff-4.7.0/configure tiff-4.7.0-banan_os/configure
  beos*)
    library_names_spec='$libname$shared_ext'
    dynamic_linker="$host_os ld.so"
-@@ -14558,6 +14577,11 @@
-         fi
-         ;;
- 
-+      banan_os*)
-+	# FIXME: insert proper C++ library support
-+	ld_shlibs_CXX=no
-+	;;
-+
-       beos*)
- 	if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
- 	  allow_undefined_flag_CXX=unsupported
-@@ -16456,6 +16480,16 @@
+@@ -17364,6 +17378,16 @@
    esac
    ;;
  

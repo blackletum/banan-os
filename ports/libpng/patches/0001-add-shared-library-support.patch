@@ -1,7 +1,7 @@
-diff -ruN libpng-1.6.48/configure libpng-1.6.48-banan_os/configure
---- libpng-1.6.48/configure	2025-04-30 16:51:46.000000000 +0300
-+++ libpng-1.6.48-banan_os/configure	2025-06-10 15:01:05.944037763 +0300
-@@ -6523,6 +6523,10 @@
+diff -ruN libpng-1.6.58/configure libpng-1.6.58-banan_os/configure
+--- libpng-1.6.58/configure	2026-04-15 20:23:26.000000000 +0300
++++ libpng-1.6.58-banan_os/configure	2026-07-05 13:24:13.820724843 +0300
+@@ -6834,6 +6834,10 @@
    lt_cv_deplibs_check_method=pass_all
    ;;
  
@@ -12,7 +12,7 @@ diff -ruN libpng-1.6.48/configure libpng-1.6.48-banan_os/configure
  beos*)
    lt_cv_deplibs_check_method=pass_all
    ;;
-@@ -12389,6 +12393,16 @@
+@@ -12700,6 +12704,16 @@
    esac
    ;;
  

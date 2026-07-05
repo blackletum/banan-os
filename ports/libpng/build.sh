@@ -1,7 +1,9 @@
 #!/bin/bash ../install.sh
 
 NAME='libpng'
-VERSION='1.6.48'
-DOWNLOAD_URL="https://download.sourceforge.net/libpng/libpng-$VERSION.tar.gz#68f3d83a79d81dfcb0a439d62b411aa257bb4973d7c67cd1ff8bdf8d011538cd"
+VERSION='1.6.58'
+DOWNLOAD_URL="https://download.sourceforge.net/libpng/libpng-$VERSION.tar.gz#8c9b05b675ca7301a458df2c2e46f26e1d41ff36b8863f8c33530bc58c2e6225"
 DEPENDENCIES=('zlib')
-CONFIG_SUB=('config.sub')
+CONFIGURE_OPTIONS=(
+	'--disable-static'
+)

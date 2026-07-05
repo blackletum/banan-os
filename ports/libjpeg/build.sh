@@ -1,7 +1,10 @@
 #!/bin/bash ../install.sh
 
 NAME='libjpeg'
-VERSION='9f'
-DOWNLOAD_URL="https://www.ijg.org/files/jpegsrc.v9f.tar.gz#04705c110cb2469caa79fb71fba3d7bf834914706e9641a4589485c1f832565b"
+VERSION='10'
+DOWNLOAD_URL="https://www.ijg.org/files/jpegsrc.v$VERSION.tar.gz#8b9eaa13242690ebd03e1728ab1edf97a81a78ed6e83624d493655f31ac95ab5"
 TAR_CONTENT="jpeg-$VERSION"
 CONFIG_SUB=('config.sub')
+CONFIGURE_OPTIONS=(
+	'--disable-static'
+)

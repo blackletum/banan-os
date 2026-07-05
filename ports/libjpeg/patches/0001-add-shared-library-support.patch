@@ -1,7 +1,18 @@
-diff -ruN jpeg-9f/configure jpeg-9f-banan_os/configure
---- jpeg-9f/configure	2024-01-08 19:38:44.000000000 +0200
-+++ jpeg-9f-banan_os/configure	2025-06-11 11:03:15.719030091 +0300
-@@ -12944,6 +12944,16 @@
+diff -ruN libjpeg-10/configure libjpeg-10-banan_os/configure
+--- libjpeg-10/configure	2025-12-31 20:03:45.000000000 +0200
++++ libjpeg-10-banan_os/configure	2026-07-05 13:28:25.721646060 +0300
+@@ -7457,6 +7457,10 @@
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
++banan_os*)
++  lt_cv_deplibs_check_method=pass_all
++  ;;
++
+ beos*)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+@@ -13234,6 +13238,16 @@
    esac
    ;;
  
