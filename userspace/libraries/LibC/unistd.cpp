@@ -688,6 +688,14 @@ int getpagesize(void)
 	return PAGE_SIZE;
 }
 
+int pause(void)
+{
+	sigset_t mask;
+	if (sigprocmask(SIG_BLOCK, nullptr, &mask) == -1)
+		return -1;
+	return sigsuspend(&mask);
+}
+
 int lockf(int fildes, int function, off_t size)
 {
 	(void)fildes;
