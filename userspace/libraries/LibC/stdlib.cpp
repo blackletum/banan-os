@@ -542,22 +542,51 @@ void* bsearch(const void* key, const void* base, size_t nel, size_t width, int (
 	return nullptr;
 }
 
-static void qsort_swap(void* lhs, void* rhs, size_t width)
+template<typename T>
+static inline void qsort_swap_fixed(void* lhs, void* rhs)
 {
+	T temp;
+	memcpy(&temp, lhs, sizeof(T));
+	memcpy(lhs,   rhs, sizeof(T));
+	memcpy(rhs, &temp, sizeof(T));
+}
+
+static void qsort_swap_generic(void* lhs, void* rhs, size_t width)
+{
+	uint8_t temp[64];
+
 	uint8_t* ulhs = static_cast<uint8_t*>(lhs);
 	uint8_t* urhs = static_cast<uint8_t*>(rhs);
 
-	uint8_t temp[64];
-	while (width > 0)
+	while (width >= sizeof(temp))
 	{
-		const size_t to_swap = BAN::Math::min(width, sizeof(temp));
-		memcpy(temp, ulhs, to_swap);
-		memcpy(ulhs, urhs, to_swap);
-		memcpy(urhs, temp, to_swap);
-		width -= to_swap;
-		ulhs += to_swap;
-		urhs += to_swap;
+		memcpy(temp, ulhs, sizeof(temp));
+		memcpy(ulhs, urhs, sizeof(temp));
+		memcpy(urhs, temp, sizeof(temp));
+		width -= sizeof(temp);
+		ulhs  += sizeof(temp);
+		urhs  += sizeof(temp);
 	}
+
+	if (width > 0)
+	{
+		memcpy(temp, ulhs, width);
+		memcpy(ulhs, urhs, width);
+		memcpy(urhs, temp, width);
+	}
+}
+
+void qsort_swap(void* lhs, void* rhs, size_t width)
+{
+	switch (width)
+	{
+		case 1: return qsort_swap_fixed<uint8_t> (lhs, rhs);
+		case 2: return qsort_swap_fixed<uint16_t>(lhs, rhs);
+		case 4: return qsort_swap_fixed<uint32_t>(lhs, rhs);
+		case 8: return qsort_swap_fixed<uint64_t>(lhs, rhs);
+	}
+
+	qsort_swap_generic(lhs, rhs, width);
 }
 
 struct qsort_pair
@@ -566,8 +595,7 @@ struct qsort_pair
 	uint8_t* gt;
 };
 
-template<typename... Args>
-static qsort_pair qsort_partition(uint8_t* pbegin, uint8_t* pend, size_t width, int (*compar)(const void*, const void*, Args...), Args... args)
+static qsort_pair qsort_partition(uint8_t* pbegin, uint8_t* pend, size_t width, int (*compar)(const void*, const void*, void*), void* arg)
 {
 	uint8_t* pivot = pbegin + (pend - pbegin) / width / 2 * width;
 
@@ -577,11 +605,12 @@ static qsort_pair qsort_partition(uint8_t* pbegin, uint8_t* pend, size_t width, 
 
 	while (eq < gt)
 	{
-		const int comp = (eq == pivot) ? 0 : compar(eq, pivot, args...);
+		const int comp = (eq == pivot) ? 0 : compar(eq, pivot, arg);
 
 		if (comp < 0)
 		{
-			qsort_swap(eq, lt, width);
+			if (eq != lt)
+				qsort_swap(eq, lt, width);
 			if (pivot == lt)
 				pivot = eq;
 			lt += width;
@@ -590,7 +619,8 @@ static qsort_pair qsort_partition(uint8_t* pbegin, uint8_t* pend, size_t width, 
 		else if (comp > 0)
 		{
 			gt -= width;
-			qsort_swap(eq, gt, width);
+			if (eq != gt)
+				qsort_swap(eq, gt, width);
 			if (pivot == gt)
 				pivot = eq;
 		}
@@ -603,22 +633,30 @@ static qsort_pair qsort_partition(uint8_t* pbegin, uint8_t* pend, size_t width, 
 	return { lt, gt };
 }
 
-template<typename... Args>
-static void qsort_impl(uint8_t* pbegin, uint8_t* pend, size_t width, int (*compar)(const void*, const void*, Args...), Args... args)
+static void qsort_impl(uint8_t* pbegin, uint8_t* pend, size_t width, int (*compar)(const void*, const void*, void*), void* arg)
 {
-	if (pbegin + width >= pend)
-		return;
-	auto [lt, gt] = qsort_partition(pbegin, pend, width, compar, args...);
-	qsort_impl(pbegin, lt, width, compar, args...);
-	qsort_impl(gt, pend, width, compar, args...);
-}
+	while (pbegin + width < pend)
+	{
+		if (pbegin + 16 * width <= pend)
+		{
+			for (uint8_t* ptr1 = pbegin; ptr1 < pend; ptr1 += width)
+				for (uint8_t* ptr2 = ptr1; ptr2 != pbegin && compar(ptr2 - width, ptr2, arg) > 0; ptr2 -= width)
+					qsort_swap(ptr2 - width, ptr2, width);
+			return;
+		}
 
-void qsort(void* base, size_t nel, size_t width, int (*compar)(const void*, const void*))
-{
-	if (width == 0 || nel <= 1)
-		return;
-	uint8_t* pbegin = static_cast<uint8_t*>(base);
-	qsort_impl(pbegin, pbegin + nel * width, width, compar);
+		auto [lt, gt] = qsort_partition(pbegin, pend, width, compar, arg);
+		if (lt - pbegin < pend - gt)
+		{
+			qsort_impl(pbegin, lt, width, compar, arg);
+			pbegin = gt;
+		}
+		else
+		{
+			qsort_impl(gt, pend, width, compar, arg);
+			pend = lt;
+		}
+	}
 }
 
 void qsort_r(void* base, size_t nel, size_t width, int (*compar)(const void*, const void*, void*), void* arg)
@@ -627,6 +665,18 @@ void qsort_r(void* base, size_t nel, size_t width, int (*compar)(const void*, co
 		return;
 	uint8_t* pbegin = static_cast<uint8_t*>(base);
 	qsort_impl(pbegin, pbegin + nel * width, width, compar, arg);
+}
+
+void qsort(void* base, size_t nel, size_t width, int (*compar)(const void*, const void*))
+{
+	struct qsort_info_t {
+		int (*compar)(const void*, const void*);
+	};
+	constexpr auto qsort_compar = [](const void* a, const void* b, void* info) -> int {
+		return static_cast<qsort_info_t*>(info)->compar(a, b);
+	};
+	qsort_info_t info { compar };
+	return qsort_r(base, nel, width, qsort_compar, &info);
 }
 
 // Constants and algorithm from https://en.wikipedia.org/wiki/Permuted_congruential_generator
