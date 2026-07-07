@@ -10,8 +10,8 @@ CONFIGURE_OPTIONS=(
 	'--without-bash-malloc'
 	'--with-curses'
 	'bash_cv_unusable_rtsigs=no'
-	'bash_cv_signal_vintage=posix'
-	'CFLAGS=-std=c17'
+	'bash_cv_struct_winsize_termios=yes' # configure checks for sys/termios.h? code uses termios.h correctly
+	'CFLAGS=-std=c17 -Wno-discarded-qualifiers'
 	'CFLAGS_FOR_BUILD=-std=c17'
 )
 
