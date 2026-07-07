@@ -134,6 +134,12 @@ void clearerr(FILE* file)
 	file->error = false;
 }
 
+size_t __fpending(FILE* file)
+{
+	ScopeLock _(file);
+	return file->buffer_rd_size ? 0 : file->buffer_idx;
+}
+
 void __fseterr(FILE* file)
 {
 	ScopeLock _(file);

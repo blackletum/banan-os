@@ -127,6 +127,7 @@ int		vsnprintf(char* __restrict s, size_t n, const char* __restrict format, va_l
 int		vsprintf(char* __restrict s, const char* __restrict format, va_list ap);
 int		vsscanf(const char* __restrict s, const char* __restrict format, va_list arg);
 
+size_t __fpending(FILE* stream);
 void __fseterr(FILE* stream);
 
 __END_DECLS
