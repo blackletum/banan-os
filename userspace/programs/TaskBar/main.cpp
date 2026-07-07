@@ -116,11 +116,17 @@ static BAN::String get_cpu_load(bool show_long)
 	}
 
 	BAN::String result;
-	(void)result.append("CPU");
+	(void)result.append("CPU"_sv);
 
-	for (size_t i = 0; i < delta_stats.size(); i++)
+	for (const auto stats : delta_stats)
 	{
-		const uint64_t idle_10000 = 10'000 * delta_stats[i].idle_ns / delta_stats[i].total_ns;
+		if (stats.total_ns == 0)
+		{
+			(void)result.append(" ??.??%"_sv);
+			continue;
+		}
+
+		const uint64_t idle_10000 = 10'000 * stats.idle_ns / stats.total_ns;
 		const uint64_t load_10000 = 10'000 - idle_10000;
 
 		auto string = BAN::String::formatted(" {}.{2}%", load_10000 / 100, load_10000 % 100);
