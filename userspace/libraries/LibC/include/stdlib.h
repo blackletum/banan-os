@@ -89,6 +89,7 @@ int					rand(void);
 int					rand_r(unsigned* seed);
 long				random(void);
 void*				realloc(void* ptr, size_t size);
+void*				reallocarray(void* ptr, size_t nmemb, size_t size);
 char*				realpath(const char* __restrict file_name, char* __restrict resolved_name);
 unsigned short*		seed48(unsigned short seed16v[3]);
 int					setenv(const char* envname, const char* envval, int overwrite);

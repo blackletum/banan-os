@@ -1,7 +1,9 @@
+#include <BAN/Atomic.h>
 #include <BAN/Math.h>
 
 #include <assert.h>
 #include <errno.h>
+#include <malloc.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -220,6 +222,9 @@ static size_t s_allocator_capacity { 0 };
 static BitmapAllocator* s_allocators { nullptr };
 static pthread_mutex_t s_allocator_lock = PTHREAD_MUTEX_INITIALIZER;
 
+static BAN::Atomic<size_t> s_mmap_count { 0 };
+static BAN::Atomic<size_t> s_mmap_bytes { 0 };
+
 void* malloc(size_t total_size)
 {
 	if (total_size >= s_mmap_threshold)
@@ -229,6 +234,9 @@ void* malloc(size_t total_size)
 		void* address = mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 		if (address == MAP_FAILED)
 			return nullptr;
+
+		s_mmap_count++;
+		s_mmap_bytes += mmap_size;
 
 		auto& header = static_cast<MmapAllocationHeader*>(address)[0];
 		header = {
@@ -294,6 +302,8 @@ void free(void* ptr)
 	pthread_mutex_unlock(&s_allocator_lock);
 
 	const auto& header = static_cast<MmapAllocationHeader*>(ptr)[-1];
+	s_mmap_count--;
+	s_mmap_bytes += header.mmap_size;
 	munmap(static_cast<uint8_t*>(ptr) - header.offset, header.mmap_size);
 }
 
@@ -311,7 +321,7 @@ static size_t allocation_size(void* ptr)
 	pthread_mutex_unlock(&s_allocator_lock);
 
 	const auto& header = static_cast<MmapAllocationHeader*>(ptr)[-1];
-	return header.mmap_size - sizeof(MmapAllocationHeader);
+	return header.mmap_size - header.offset;
 }
 
 void* realloc(void* ptr, size_t size)
@@ -346,12 +356,13 @@ void* realloc(void* ptr, size_t size)
 
 void* calloc(size_t nmemb, size_t size)
 {
-	const size_t total = nmemb * size;
-	if (size != 0 && total / size != nmemb)
+	if (BAN::Math::will_multiplication_overflow(nmemb, size))
 	{
 		errno = ENOMEM;
 		return nullptr;
 	}
+
+	const size_t total = nmemb * size;
 
 	void* ptr = malloc(total);
 	if (ptr == nullptr)
@@ -359,6 +370,17 @@ void* calloc(size_t nmemb, size_t size)
 
 	memset(ptr, 0, total);
 	return ptr;
+}
+
+void* reallocarray(void* ptr, size_t nmemb, size_t size)
+{
+	if (BAN::Math::will_multiplication_overflow(nmemb, size))
+	{
+		errno = ENOMEM;
+		return nullptr;
+	}
+
+	return realloc(ptr, nmemb * size);
 }
 
 void* aligned_alloc(size_t alignment, size_t size)
@@ -379,6 +401,9 @@ void* aligned_alloc(size_t alignment, size_t size)
 	void* address = mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 	if (address == MAP_FAILED)
 		return nullptr;
+
+	s_mmap_count++;
+	s_mmap_bytes += mmap_size;
 
 	uintptr_t data = reinterpret_cast<uintptr_t>(address) + sizeof(MmapAllocationHeader);
 	if (auto rem = data % alignment)
@@ -403,4 +428,56 @@ int posix_memalign(void** memptr, size_t alignment, size_t size)
 	}
 
 	return (*memptr = aligned_alloc(alignment, size)) ? 0 : -1;
+}
+
+size_t malloc_usable_size(void* ptr)
+{
+	if (ptr == nullptr)
+		return 0;
+	return allocation_size(ptr);
+}
+
+struct mallinfo mallinfo(void)
+{
+	constexpr auto saturate = [](size_t value) -> int {
+		if (value > static_cast<size_t>(BAN::numeric_limits<int>::max()))
+			return BAN::numeric_limits<int>::max();
+		return value;
+	};
+
+	const auto info = mallinfo2();
+	return {
+		.arena    = saturate(info.arena),
+		.ordblks  = saturate(info.ordblks),
+		.smblks   = saturate(info.smblks),
+		.hblks    = saturate(info.hblks),
+		.hblkhd   = saturate(info.hblkhd),
+		.usmblks  = saturate(info.usmblks),
+		.fsmblks  = saturate(info.fsmblks),
+		.uordblks = saturate(info.uordblks),
+		.fordblks = saturate(info.fordblks),
+		.keepcost = saturate(info.keepcost),
+	};
+}
+
+struct mallinfo2 mallinfo2(void)
+{
+	struct mallinfo2 info {};
+
+	pthread_mutex_lock(&s_allocator_lock);
+	info.arena = s_allocator_count * s_allocator_size;
+	for (size_t i = 0; i < s_allocator_count; i++)
+	{
+		const size_t total_mem = s_allocators[i].total_chunks * s_allocator_chunk_size;
+		const size_t free_mem  = s_allocators[i].free_chunks  * s_allocator_chunk_size;
+		info.fordblks += free_mem;
+		info.uordblks += total_mem - free_mem;
+	}
+	pthread_mutex_unlock(&s_allocator_lock);
+
+	info.hblks     = s_mmap_count.load();
+	info.hblkhd    = s_mmap_bytes.load();
+	info.uordblks += info.hblkhd;
+
+	return info;
 }
