@@ -26,6 +26,7 @@ namespace Kernel
 		BAN::ErrorOr<uint8_t> reserve_gsi(uint32_t gsi);
 
 		void initialize_timer();
+		void set_timer_dealine(uint64_t ns);
 
 	private:
 		uint32_t read_from_local_apic(ptrdiff_t);

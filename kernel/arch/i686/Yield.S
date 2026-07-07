@@ -12,7 +12,7 @@ asm_yield_trampoline:
 	pushl %ebp
 
 	pushl %esp
-	call scheduler_on_yield
+	call scheduler_on_yield_trampoline
 	addl $4, %esp
 
 	popl %ebp

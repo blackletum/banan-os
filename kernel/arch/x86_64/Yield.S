@@ -15,7 +15,7 @@ asm_yield_trampoline:
 	pushq %r15
 
 	movq %rsp, %rdi
-	call scheduler_on_yield
+	call scheduler_on_yield_trampoline
 
 	popq %r15
 	popq %r14

@@ -23,7 +23,7 @@ namespace Kernel
 
 	public:
 		void add_thread_to_back(Node*);
-		void add_thread_with_wake_time(Node*);
+		bool add_thread_with_wake_time(Node*); // return true if node was inserted as the first element
 		template<typename F>
 		Node* remove_with_condition(F callback);
 		void remove_node(Node*);
@@ -60,7 +60,8 @@ namespace Kernel
 		void reschedule(YieldRegisters*);
 		void reschedule_if_idle();
 
-		void timer_interrupt();
+		void on_timer_interrupt();
+		void on_yield(YieldRegisters*);
 
 		static BAN::ErrorOr<void> bind_thread_to_processor(Thread*, ProcessorID);
 		// if thread is already bound, this will never fail
@@ -82,6 +83,7 @@ namespace Kernel
 		void update_most_loaded_node_queue(SchedulerQueue::Node*, SchedulerQueue* target_queue);
 		void remove_node_from_most_loaded(SchedulerQueue::Node*);
 
+		void update_wake_up_deadline();
 		void wake_up_sleeping_threads();
 
 		void do_load_balancing();

@@ -61,7 +61,7 @@ namespace Kernel
 		SystemTimer::get().update_tsc();
 
 		if (should_invoke_scheduler())
-			Processor::scheduler().timer_interrupt();
+			Processor::scheduler().on_timer_interrupt();
 	}
 
 	uint64_t PIT::read_counter_ns() const

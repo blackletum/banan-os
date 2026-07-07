@@ -306,7 +306,7 @@ namespace Kernel
 		SystemTimer::get().update_tsc();
 
 		if (should_invoke_scheduler())
-			Processor::scheduler().timer_interrupt();
+			Processor::scheduler().on_timer_interrupt();
 	}
 
 	uint64_t HPET::ms_since_boot() const

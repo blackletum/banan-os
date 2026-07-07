@@ -435,7 +435,7 @@ namespace Kernel
 		if (Processor::current_is_bsp())
 			Process::update_alarm_queue();
 
-		Processor::scheduler().timer_interrupt();
+		Processor::scheduler().on_timer_interrupt();
 	}
 
 	extern "C" void cpp_irq_handler(uint32_t irq)

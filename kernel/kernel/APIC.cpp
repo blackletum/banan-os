@@ -437,8 +437,27 @@ namespace Kernel
 
 		dprintln("CPU {}: lapic timer frequency: {} Hz", Kernel::Processor::current_id(), m_lapic_timer_frequency_hz);
 
-		write_to_local_apic(LAPIC_TIMER_LVT,         TimerModePeriodic | IRQ_TIMER);
-		write_to_local_apic(LAPIC_TIMER_INITIAL_REG, m_lapic_timer_frequency_hz / 2 / 100);
+		write_to_local_apic(LAPIC_TIMER_LVT,         TimerModeOneShot | IRQ_TIMER);
+		write_to_local_apic(LAPIC_TIMER_INITIAL_REG, 0);
+	}
+
+	void APIC::set_timer_dealine(uint64_t target_ns)
+	{
+		// TODO: don't hardcode divide by 2
+		const uint64_t effective_freq = m_lapic_timer_frequency_hz / 2;
+
+		const uint64_t delta_ns = [&]() -> uint64_t {
+			const uint64_t current_ns = SystemTimer::get().ns_since_boot();
+			if (current_ns >= target_ns)
+				return 1;
+			const uint64_t delta_ns = target_ns - current_ns;
+			if (BAN::Math::will_multiplication_overflow(delta_ns, effective_freq))
+				return BAN::numeric_limits<uint64_t>::max() / effective_freq;
+			return delta_ns;
+		}();
+
+		const uint64_t ticks = BAN::Math::div_round_up<uint64_t>(delta_ns * effective_freq, 1'000'000'000);
+		write_to_local_apic(LAPIC_TIMER_INITIAL_REG, BAN::Math::min<uint64_t>(ticks, BAN::numeric_limits<uint32_t>::max()));
 	}
 
 	uint32_t APIC::read_from_local_apic(ptrdiff_t offset)

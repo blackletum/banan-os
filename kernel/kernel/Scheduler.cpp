@@ -1,5 +1,6 @@
 #include <BAN/Optional.h>
 #include <BAN/Sort.h>
+#include <kernel/APIC.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Lock/Mutex.h>
 #include <kernel/Process.h>
@@ -45,12 +46,15 @@ namespace Kernel
 		m_tail = node;
 	}
 
-	void SchedulerQueue::add_thread_with_wake_time(Node* node)
+	bool SchedulerQueue::add_thread_with_wake_time(Node* node)
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
 		if (m_tail == nullptr || node->wake_time_ns >= m_tail->wake_time_ns)
-			return add_thread_to_back(node);
+		{
+			add_thread_to_back(node);
+			return node == m_head;
+		}
 
 		Node* next = m_head;
 		Node* prev = nullptr;
@@ -64,6 +68,8 @@ namespace Kernel
 		node->prev = prev;
 		(next ? next->prev : m_tail) = node;
 		(prev ? prev->next : m_head) = node;
+
+		return node == m_head;
 	}
 
 	template<typename F>
@@ -122,15 +128,9 @@ namespace Kernel
 		m_idle_thread = TRY(Thread::create_kernel([](void*) { asm volatile("1: hlt; jmp 1b"); }, nullptr));
 		ASSERT(m_idle_thread);
 
-		size_t processor_index = 0;
-		for (; processor_index < Processor::count(); processor_index++)
-			if (Processor::id_from_index(processor_index) == Processor::current_id())
-				break;
-		ASSERT(processor_index < Processor::count());
-
 		// each CPU does load balance at different times. This calulates the offset to other CPUs
-		m_last_load_balance_ns = s_load_balance_interval_ns * processor_index / Processor::count();
-		m_idle_ns              = -m_last_load_balance_ns;
+		m_last_load_balance_ns = s_load_balance_interval_ns * Processor::current_index() / Processor::count();
+		m_idle_ns              = m_last_load_balance_ns;
 
 		s_schedulers_initialized++;
 		while (s_schedulers_initialized < Processor::count())
@@ -138,8 +138,6 @@ namespace Kernel
 
 		if (Processor::count() > 1)
 			Processor::set_smp_enabled();
-
-		m_next_reschedule_ns = SystemTimer::get().ns_since_boot();
 
 		return {};
 	}
@@ -232,17 +230,14 @@ namespace Kernel
 					m_thread_count--;
 					break;
 				case Thread::State::Executing:
-				{
-					const uint64_t current_ns = SystemTimer::get().ns_since_boot();
 					m_current->thread->yield_registers() = *yield_registers;
-					m_current->time_used_ns += current_ns - m_current->last_start_ns;
+					m_current->time_used_ns += SystemTimer::get().ns_since_boot() - m_current->last_start_ns;
 					add_current_to_most_loaded(m_current->blocked ? &m_block_queue : &m_run_queue);
 					if (!m_current->blocked)
 						m_run_queue.add_thread_to_back(m_current);
-					else
-						m_block_queue.add_thread_with_wake_time(m_current);
+					else if (m_block_queue.add_thread_with_wake_time(m_current))
+						update_wake_up_deadline();
 					break;
-				}
 				case Thread::State::NotStarted:
 					ASSERT(!m_current->blocked);
 					m_current->time_used_ns = 0;
@@ -321,26 +316,50 @@ namespace Kernel
 		}
 	}
 
+	void Scheduler::update_wake_up_deadline()
+	{
+		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
+
+		auto& interrupt_controller = InterruptController::get();
+
+		// TODO: support timer deadlines on non-apic timers and abstract it :)
+		if (!interrupt_controller.is_using_apic())
+			return;
+
+		wake_up_sleeping_threads();
+
+		uint64_t deadline_ns = m_next_reschedule_ns;
+		if (!m_block_queue.empty())
+			deadline_ns = BAN::Math::min(deadline_ns, m_block_queue.front()->wake_time_ns);
+		if (Processor::is_smp_enabled())
+			deadline_ns = BAN::Math::min(deadline_ns, m_last_load_balance_ns + s_load_balance_interval_ns);
+
+		static_cast<APIC&>(interrupt_controller).set_timer_dealine(deadline_ns);
+	}
+
 	void Scheduler::reschedule_if_idle()
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
-		if (m_current != nullptr)
-			return;
-
-		if (m_run_queue.empty())
-			wake_up_sleeping_threads();
-
-		if (!m_run_queue.empty())
+		if (m_current == nullptr && !m_run_queue.empty())
 			Processor::yield();
 	}
 
-	extern "C" void scheduler_on_yield(YieldRegisters* yield_registers)
+	extern "C" void scheduler_on_yield_trampoline(YieldRegisters* yield_registers)
 	{
-		Processor::scheduler().reschedule(yield_registers);
+		Processor::scheduler().on_yield(yield_registers);
 	}
 
-	void Scheduler::timer_interrupt()
+	void Scheduler::on_yield(YieldRegisters* yield_registers)
+	{
+		reschedule(yield_registers);
+		m_next_reschedule_ns = !is_idle()
+			? SystemTimer::get().ns_since_boot() + s_reschedule_interval_ns
+			: BAN::numeric_limits<uint64_t>::max();
+		update_wake_up_deadline();
+	}
+
+	void Scheduler::on_timer_interrupt()
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
@@ -349,11 +368,8 @@ namespace Kernel
 
 		wake_up_sleeping_threads();
 
-		if (SystemTimer::get().ns_since_boot() >= m_next_reschedule_ns)
-		{
-			m_next_reschedule_ns += s_reschedule_interval_ns;
+		if (is_idle() || SystemTimer::get().ns_since_boot() >= m_next_reschedule_ns)
 			Processor::yield();
-		}
 	}
 
 	void Scheduler::unblock_thread(SchedulerQueue::Node* node)
@@ -394,8 +410,8 @@ namespace Kernel
 
 		if (!node->blocked)
 			m_run_queue.add_thread_to_back(node);
-		else
-			m_block_queue.add_thread_with_wake_time(node);
+		else if (m_block_queue.add_thread_with_wake_time(node))
+			update_wake_up_deadline();
 
 		if (auto* thread = node->thread; thread->is_userspace() && thread->has_process())
 			thread->update_processor_index_address();
