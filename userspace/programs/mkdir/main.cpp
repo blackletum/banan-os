@@ -8,7 +8,7 @@
 
 static const char* s_argv0 { nullptr };
 
-bool create_parents(const char* path, bool verbose)
+static bool create_parents(const char* path, bool verbose)
 {
 	char buffer[PATH_MAX];
 	for (size_t i = 0; path[i];)
@@ -21,32 +21,47 @@ bool create_parents(const char* path, bool verbose)
 			break;
 		buffer[i] = '\0';
 
-		if (mkdir(buffer, 0) == -1)
+		struct stat st;
+		if (stat(path, &st) == 0)
 		{
-			if (errno == EEXIST)
+			if (S_ISDIR(st.st_mode))
 				continue;
+			fprintf(stderr, "%s: cannot create '%s': %s\n", s_argv0, path, strerror(EEXIST));
+			return false;
+		}
+
+		if (errno != ENOENT || mkdir(path, 0) == -1)
+		{
 			fprintf(stderr, "%s: cannot create '%s': %s\n", s_argv0, path, strerror(errno));
 			return false;
 		}
 
-		const mode_t filemask = umask(0);
-		umask(filemask);
-
-		chmod(buffer, (S_IWUSR | S_IXUSR | ~filemask) & 0777);
-
 		if (verbose)
 			printf("%s: created directory '%s'\n", s_argv0, path);
+
+		const mode_t filemask = umask(0);
+		umask(filemask);
+		chmod(buffer, (S_IWUSR | S_IXUSR | ~filemask) & 0777);
 	}
 
 	return true;
 }
 
-bool create_directory(const char* path, mode_t mode, bool verbose, bool parents)
+static bool create_directory(const char* path, mode_t mode, bool verbose, bool parents)
 {
 	if (parents && !create_parents(path, verbose))
 		return false;
 
-	if (mkdir(path, mode) == -1)
+	struct stat st;
+	if (stat(path, &st) == 0)
+	{
+		if (parents && S_ISDIR(st.st_mode))
+			return true;
+		fprintf(stderr, "%s: cannot create '%s': %s\n", s_argv0, path, strerror(EEXIST));
+		return false;
+	}
+
+	if (errno != ENOENT || mkdir(path, mode) == -1)
 	{
 		fprintf(stderr, "%s: cannot create '%s': %s\n", s_argv0, path, strerror(errno));
 		return false;
