@@ -326,8 +326,6 @@ namespace Kernel
 		if (!interrupt_controller.is_using_apic())
 			return;
 
-		wake_up_sleeping_threads();
-
 		uint64_t deadline_ns = m_next_reschedule_ns;
 		if (!m_block_queue.empty())
 			deadline_ns = BAN::Math::min(deadline_ns, m_block_queue.front()->wake_time_ns);
@@ -368,8 +366,12 @@ namespace Kernel
 
 		wake_up_sleeping_threads();
 
+		// NOTE: yield will update the timer deadline, but if we do not yield make sure
+		//       we set the next deadline or we won't get another timer interrupt
 		if (is_idle() || SystemTimer::get().ns_since_boot() >= m_next_reschedule_ns)
 			Processor::yield();
+		else
+			update_wake_up_deadline();
 	}
 
 	void Scheduler::unblock_thread(SchedulerQueue::Node* node)
