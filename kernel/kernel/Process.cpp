@@ -1527,7 +1527,11 @@ namespace Kernel
 			uid_gid_t { m_credentials.euid(), m_credentials.egid() };
 		});
 
-		auto [parent, file_name] = TRY(find_parent_file(fd, path, O_WRONLY));
+		auto [parent, file_name] = TRY(find_parent_file(fd, path, O_SEARCH));
+		if (!parent.inode->find_inode(file_name).is_error())
+			return BAN::Error::from_errno(EEXIST);
+		if (!parent.inode->can_access(m_credentials, O_WRONLY))
+			return BAN::Error::from_errno(EACCES);
 		TRY(parent.inode->create_directory(file_name, (mode & 0777) | Inode::Mode::IFDIR, uid, gid));
 
 		return 0;
