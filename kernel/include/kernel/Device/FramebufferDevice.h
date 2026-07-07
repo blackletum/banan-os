@@ -36,7 +36,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
 
-		BAN::ErrorOr<long> ioctl_impl(int cmd, void* arg) override;
+		BAN::ErrorOr<long> ioctl_impl(unsigned long request, void* arg) override;
 
 		virtual bool can_read_impl() const override { return true; }
 		virtual bool can_write_impl() const override { return true; }

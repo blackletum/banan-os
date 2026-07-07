@@ -82,7 +82,7 @@ struct fb_msync_region
 };
 #define FB_MSYNC_RECTANGLE 90 /* msync a rectangular area in mmap'd framebuffer device */
 
-int ioctl(int, int, ...);
+int ioctl(int, unsigned long, ...);
 
 __END_DECLS
 

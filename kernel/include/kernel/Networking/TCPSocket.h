@@ -66,7 +66,7 @@ namespace Kernel
 		BAN::ErrorOr<void> getsockopt_impl(int, int, void*, socklen_t*) override;
 		BAN::ErrorOr<void> setsockopt_impl(int, int, const void*, socklen_t) override;
 
-		BAN::ErrorOr<long> ioctl_impl(int, void*) override;
+		BAN::ErrorOr<long> ioctl_impl(unsigned long, void*) override;
 
 		void receive_packet(BAN::ConstByteSpan, const sockaddr* sender, socklen_t sender_len, uint32_t validated_cksums) override;
 

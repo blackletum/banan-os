@@ -185,7 +185,7 @@ namespace Kernel
 		return to_copy;
 	}
 
-	BAN::ErrorOr<long> USBJoystick::ioctl_impl(int request, void* arg)
+	BAN::ErrorOr<long> USBJoystick::ioctl_impl(unsigned long request, void* arg)
 	{
 		switch (request)
 		{
@@ -217,7 +217,7 @@ namespace Kernel
 				ASSERT_NOT_REACHED();
 		}
 
-		return USBHIDDevice::ioctl(request, arg);
+		return USBHIDDevice::ioctl_impl(request, arg);
 	}
 
 	void USBJoystick::update()

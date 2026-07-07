@@ -54,7 +54,7 @@ namespace Kernel
 	protected:
 		NetworkSocket(NetworkLayer&, const Socket::Info&);
 
-		virtual BAN::ErrorOr<long> ioctl_impl(int request, void* arg) override;
+		virtual BAN::ErrorOr<long> ioctl_impl(unsigned long request, void* arg) override;
 		virtual BAN::ErrorOr<void> getsockname_impl(sockaddr*, socklen_t*) override;
 		virtual BAN::ErrorOr<void> getpeername_impl(sockaddr*, socklen_t*) override = 0;
 

@@ -92,7 +92,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> send_raw_bytes(BAN::Span<const BAN::ConstByteSpan> buffers) = 0;
 
 	private:
-		BAN::ErrorOr<long> ioctl_impl(int, void*) override;
+		BAN::ErrorOr<long> ioctl_impl(unsigned long, void*) override;
 
 	private:
 		const Type m_type;

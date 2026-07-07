@@ -68,7 +68,7 @@ namespace Kernel
 		virtual bool has_error_impl() const override { return false; }
 		virtual bool has_hungup_impl() const override { return false; }
 
-		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) override;
+		virtual BAN::ErrorOr<long> ioctl_impl(unsigned long, void*) override;
 
 	private:
 		bool putchar(uint8_t ch);

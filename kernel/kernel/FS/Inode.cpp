@@ -316,7 +316,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<long> Inode::ioctl(int request, void* arg)
+	BAN::ErrorOr<long> Inode::ioctl(unsigned long request, void* arg)
 	{
 		auto ret = ioctl_impl(request, arg);
 		if (!ret.is_error() || ret.error().get_error_code() != ENOTSUP)

@@ -2043,7 +2043,7 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.sendmsg(socket, message, flags));
 	}
 
-	BAN::ErrorOr<long> Process::sys_ioctl(int fildes, int request, void* arg)
+	BAN::ErrorOr<long> Process::sys_ioctl(int fildes, unsigned long request, void* arg)
 	{
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		return TRY(inode->ioctl(request, arg));

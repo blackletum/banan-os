@@ -77,9 +77,9 @@ namespace Kernel
 		return to_copy;
 	}
 
-	BAN::ErrorOr<long> AudioController::ioctl_impl(int cmd, void* arg)
+	BAN::ErrorOr<long> AudioController::ioctl_impl(unsigned long request, void* arg)
 	{
-		switch (cmd)
+		switch (request)
 		{
 			case SND_GET_CHANNELS:
 				*static_cast<uint32_t*>(arg) = get_channels();
@@ -92,7 +92,7 @@ namespace Kernel
 			{
 				SpinLockGuard _(m_spinlock);
 				*static_cast<uint32_t*>(arg) = m_sample_data->size();
-				if (cmd == SND_RESET_BUFFER)
+				if (request == SND_RESET_BUFFER)
 					m_sample_data->pop(m_sample_data->size());
 				return 0;
 			}
@@ -113,7 +113,7 @@ namespace Kernel
 				return 0;
 		}
 
-		return CharacterDevice::ioctl_impl(cmd, arg);
+		return CharacterDevice::ioctl_impl(request, arg);
 	}
 
 }

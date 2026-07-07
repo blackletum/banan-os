@@ -34,7 +34,7 @@ namespace Kernel
 		BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 		bool can_read_impl() const override { return true; }
 
-		BAN::ErrorOr<long> ioctl_impl(int request, void* arg) override;
+		BAN::ErrorOr<long> ioctl_impl(unsigned long request, void* arg) override;
 
 	private:
 		USBJoystick(USBHIDDriver&);

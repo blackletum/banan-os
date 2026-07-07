@@ -402,7 +402,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<long> TCPSocket::ioctl_impl(int request, void* argument)
+	BAN::ErrorOr<long> TCPSocket::ioctl_impl(unsigned long request, void* argument)
 	{
 		switch (request)
 		{

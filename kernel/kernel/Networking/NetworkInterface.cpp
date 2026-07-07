@@ -45,7 +45,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<long> NetworkInterface::ioctl_impl(int request, void* arg)
+	BAN::ErrorOr<long> NetworkInterface::ioctl_impl(unsigned long request, void* arg)
 	{
 		if (arg == nullptr)
 		{

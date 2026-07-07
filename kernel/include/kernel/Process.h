@@ -136,7 +136,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_recvmsg(int socket, msghdr* message, int flags);
 		BAN::ErrorOr<long> sys_sendmsg(int socket, const msghdr* message, int flags);
 
-		BAN::ErrorOr<long> sys_ioctl(int fildes, int request, void* arg);
+		BAN::ErrorOr<long> sys_ioctl(int fildes, unsigned long request, void* arg);
 
 		BAN::ErrorOr<long> sys_pselect(sys_pselect_t* arguments);
 		BAN::ErrorOr<long> sys_ppoll(pollfd* fds, nfds_t nfds, const timespec* tmp_p, const sigset_t* sigmask);

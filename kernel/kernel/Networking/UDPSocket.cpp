@@ -336,7 +336,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<long> UDPSocket::ioctl_impl(int request, void* argument)
+	BAN::ErrorOr<long> UDPSocket::ioctl_impl(unsigned long request, void* argument)
 	{
 		switch (request)
 		{

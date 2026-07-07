@@ -157,7 +157,7 @@ namespace Kernel
 			slave->m_write_blocker.unblock();
 	}
 
-	BAN::ErrorOr<long> PseudoTerminalMaster::ioctl_impl(int request, void* argument)
+	BAN::ErrorOr<long> PseudoTerminalMaster::ioctl_impl(unsigned long request, void* argument)
 	{
 		switch (request)
 		{
@@ -174,7 +174,7 @@ namespace Kernel
 				return BAN::Error::from_errno(ENODEV);
 		}
 
-		return CharacterDevice::ioctl(request, argument);
+		return CharacterDevice::ioctl_impl(request, argument);
 	}
 
 	PseudoTerminalSlave::PseudoTerminalSlave(BAN::String&& name, uint32_t number, mode_t mode, uid_t uid, gid_t gid)

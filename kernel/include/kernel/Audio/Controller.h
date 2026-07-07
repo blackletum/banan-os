@@ -38,7 +38,7 @@ namespace Kernel
 
 		BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
 
-		BAN::ErrorOr<long> ioctl_impl(int cmd, void* arg) override;
+		BAN::ErrorOr<long> ioctl_impl(unsigned long request, void* arg) override;
 
 	protected:
 		ThreadBlocker m_sample_data_blocker;

@@ -133,7 +133,7 @@ namespace Kernel
 		(void)Process::kill(-m_foreground_pgrp, SIGWINCH);
 	}
 
-	BAN::ErrorOr<long> TTY::ioctl_impl(int request, void* argument)
+	BAN::ErrorOr<long> TTY::ioctl_impl(unsigned long request, void* argument)
 	{
 		switch (request)
 		{
@@ -204,7 +204,7 @@ namespace Kernel
 			}
 		}
 
-		return CharacterDevice::ioctl(request, argument);
+		return CharacterDevice::ioctl_impl(request, argument);
 	}
 
 	void TTY::on_key_event(LibInput::RawKeyEvent event)

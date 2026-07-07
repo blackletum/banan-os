@@ -108,7 +108,7 @@ namespace Kernel
 		m_address_len = addr_len;
 	}
 
-	BAN::ErrorOr<long> NetworkSocket::ioctl_impl(int request, void* arg)
+	BAN::ErrorOr<long> NetworkSocket::ioctl_impl(unsigned long request, void* arg)
 	{
 		switch (request)
 		{

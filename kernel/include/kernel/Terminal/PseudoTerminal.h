@@ -32,7 +32,7 @@ namespace Kernel
 
 		void on_close(int) override;
 
-		BAN::ErrorOr<long> ioctl_impl(int, void*) override;
+		BAN::ErrorOr<long> ioctl_impl(unsigned long, void*) override;
 
 	private:
 		PseudoTerminalMaster(BAN::UniqPtr<VirtualRange>, mode_t, uid_t, gid_t);

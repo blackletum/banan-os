@@ -135,9 +135,9 @@ namespace Kernel
 		return bytes_to_copy;
 	}
 
-	BAN::ErrorOr<long> FramebufferDevice::ioctl_impl(int cmd, void* arg)
+	BAN::ErrorOr<long> FramebufferDevice::ioctl_impl(unsigned long request, void* arg)
 	{
-		switch (cmd)
+		switch (request)
 		{
 			case FB_MSYNC_RECTANGLE:
 			{
@@ -152,7 +152,7 @@ namespace Kernel
 			}
 		}
 
-		return CharacterDevice::ioctl(cmd, arg);
+		return CharacterDevice::ioctl_impl(request, arg);
 	}
 
 	uint32_t FramebufferDevice::get_pixel(uint32_t x, uint32_t y) const

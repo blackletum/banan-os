@@ -150,7 +150,7 @@ namespace Kernel
 		bool has_error() const  { return has_error_impl(); }
 		bool has_hungup() const { return has_hungup_impl(); }
 
-		BAN::ErrorOr<long> ioctl(int request, void* arg);
+		BAN::ErrorOr<long> ioctl(unsigned long request, void* arg);
 
 		BAN::ErrorOr<void> add_epoll(class Epoll*);
 		void del_epoll(class Epoll*);
@@ -199,7 +199,7 @@ namespace Kernel
 		virtual bool has_error_impl() const = 0;
 		virtual bool has_hungup_impl() const = 0;
 
-		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) { return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<long> ioctl_impl(unsigned long, void*) { return BAN::Error::from_errno(ENOTSUP); }
 
 	protected:
 		// TODO: this is supposed to be const I guess?

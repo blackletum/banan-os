@@ -41,7 +41,7 @@ namespace Kernel
 		BAN::ErrorOr<void> getsockopt_impl(int, int, void*, socklen_t*) override;
 		BAN::ErrorOr<void> setsockopt_impl(int, int, const void*, socklen_t) override;
 
-		BAN::ErrorOr<long> ioctl_impl(int, void*) override;
+		BAN::ErrorOr<long> ioctl_impl(unsigned long, void*) override;
 
 		bool can_read_impl() const override { return !m_packets.empty(); }
 		bool can_write_impl() const override { return true; }

@@ -3,7 +3,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-int ioctl(int fildes, int request, ...)
+int ioctl(int fildes, unsigned long request, ...)
 {
 	va_list args;
 	va_start(args, request);
