@@ -31,9 +31,9 @@ struct init_funcs_t
 
 extern "C" char** environ;
 
-
-#define DUMP_BACKTRACE 1
+#define DUMP_BACKTRACE 0
 #define DEMANGLE_BACKTRACE 0
+#define BACKTRACE_SIGNALS(X) X(SIGABRT) X(SIGBUS) X(SIGFPE) X(SIGILL) X(SIGSEGV)
 
 #if DEMANGLE_BACKTRACE
 #include <cxxabi.h>
@@ -50,7 +50,7 @@ __attribute__((noreturn))
 void __stack_chk_fail(void) { abort(); }
 }
 
-static void __dump_backtrace(int, siginfo_t*, void*);
+static void __dump_backtrace(int fd, mcontext_t*);
 
 extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t fini_funcs)
 {
@@ -87,15 +87,38 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 		sigemptyset(&ss);
 
 		const struct sigaction sa {
-			.sa_sigaction = __dump_backtrace,
+			.sa_sigaction = [](int sig, siginfo_t*, void* context) -> void {
+				constexpr auto signal_name = [](int signal) -> const char* {
+					switch (signal) {
+#define BACKTRACE_SIGNAL_CASE(sig) case sig: return #sig;
+						BACKTRACE_SIGNALS(BACKTRACE_SIGNAL_CASE)
+#undef BACKTRACE_SIGNAL_CASE
+					}
+					return "unknown signal";
+				};
+
+				// NOTE: we cannot use stddbg as that is not async-signal-safe.
+				//       POSIX says dprintf isn't either but our implementation is!
+
+				int fd = open("/dev/debug", O_WRONLY);
+				if (fd == -1)
+					perror("open debug device");
+				else
+				{
+					dprintf(fd, "received signal %s, backtrace:\n", signal_name(sig));
+					__dump_backtrace(fd, &static_cast<ucontext_t*>(context)->uc_mcontext);
+					close(fd);
+				}
+
+				raise(sig);
+			},
 			.sa_mask = ss,
 			.sa_flags = SA_RESETHAND | SA_SIGINFO,
 		};
 
-		sigaction(SIGBUS, &sa, nullptr);
-		sigaction(SIGFPE, &sa, nullptr);
-		sigaction(SIGILL, &sa, nullptr);
-		sigaction(SIGSEGV, &sa, nullptr);
+#define BACKTRACE_SIGNAL_INSTALL(sig) sigaction(sig, &sa, nullptr);
+		BACKTRACE_SIGNALS(BACKTRACE_SIGNAL_INSTALL)
+#undef BACKTRACE_SIGNAL_INSTALL
 	}
 
 	// call global constructors
@@ -151,40 +174,14 @@ static void __dump_symbol(int fd, const void* address)
 #endif
 }
 
-static void __dump_backtrace(int sig, siginfo_t*, void* context)
+static void __dump_backtrace(int fd, mcontext_t* mcontext)
 {
-	constexpr auto signal_name =
-		[](int signal) -> const char*
-		{
-			switch (signal) {
-				case SIGABRT: return "SIGABRT";
-				case SIGBUS: return "SIGBUS";
-				case SIGFPE: return "SIGFPE";
-				case SIGILL: return "SIGILL";
-				case SIGSEGV: return "SIGSEGV";
-			}
-			return "unknown signal";
-		};
-
-	// NOTE: we cannot use stddbg as that is not async-signal-safe.
-	//       POSIX says dprintf isn't either but our implementation is!
-
-	int fd = open("/dev/debug", O_WRONLY);
-	if (fd == -1)
-	{
-		perror("failed to open debug device for backtrace");
-		return;
-	}
-
-	dprintf(fd, "received %s, backtrace:\n", signal_name(sig));
-
-	const auto* ucontext = static_cast<ucontext_t*>(context);
 #if defined(__x86_64__)
-	const uintptr_t stack_base = ucontext->uc_mcontext.gregs[REG_RBP];
-	const uintptr_t instruction = ucontext->uc_mcontext.gregs[REG_RIP];
+	const uintptr_t stack_base  = mcontext->gregs[REG_RBP];
+	const uintptr_t instruction = mcontext->gregs[REG_RIP];
 #elif defined(__i686__)
-	const uintptr_t stack_base = ucontext->uc_mcontext.gregs[REG_EBP];
-	const uintptr_t instruction = ucontext->uc_mcontext.gregs[REG_EIP];
+	const uintptr_t stack_base  = mcontext->gregs[REG_EBP];
+	const uintptr_t instruction = mcontext->gregs[REG_EIP];
 #endif
 
 	struct stackframe
@@ -201,10 +198,6 @@ static void __dump_backtrace(int sig, siginfo_t*, void* context)
 		__dump_symbol(fd, stackframe->ip);
 		stackframe = stackframe->bp;
 	}
-
-	close(fd);
-
-	raise(sig);
 }
 
 void _exit(int status)
