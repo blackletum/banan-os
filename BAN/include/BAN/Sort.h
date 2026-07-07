@@ -67,11 +67,20 @@ namespace BAN::sort
 	template<typename It, typename Comp = less<it_value_type_t<It>>>
 	void quick_sort(It begin, It end, Comp comp = {})
 	{
-		if (distance(begin, end) <= 1)
-			return;
-		const auto [lt, gt] = detail::partition(begin, end, comp);
-		quick_sort(begin, lt, comp);
-		quick_sort(gt, end, comp);
+		while (distance(begin, end) > 1)
+		{
+			const auto [lt, gt] = detail::partition(begin, end, comp);
+			if (distance(begin, lt) < distance(gt, end))
+			{
+				quick_sort(begin, lt);
+				begin = gt;
+			}
+			else
+			{
+				quick_sort(gt, end);
+				end = lt;
+			}
+		}
 	}
 
 	template<typename It, typename Comp = less<it_value_type_t<It>>>
@@ -102,13 +111,28 @@ namespace BAN::sort
 		template<typename It, typename Comp>
 		void intro_sort_impl(It begin, It end, size_t max_depth, Comp comp)
 		{
-			if (distance(begin, end) <= 16)
-				return insertion_sort(begin, end, comp);
-			if (max_depth == 0)
-				return heap_sort(begin, end, comp);
-			const auto [lt, gt] = detail::partition(begin, end, comp);
-			intro_sort_impl(begin, lt, max_depth - 1, comp);
-			intro_sort_impl(gt, end, max_depth - 1, comp);
+			for (size_t i = 0; i < max_depth; i++)
+			{
+				const size_t len = distance(begin, end);
+				if (len <= 1)
+					return;
+				if (len <= 16)
+					return insertion_sort(begin, end, comp);
+
+				const auto [lt, gt] = detail::partition(begin, end, comp);
+				if (distance(begin, lt) < distance(gt, end))
+				{
+					intro_sort_impl(begin, lt, max_depth - 1, comp);
+					begin = gt;
+				}
+				else
+				{
+					intro_sort_impl(gt, end, max_depth - 1, comp);
+					end = lt;
+				}
+			}
+
+			heap_sort(begin, end, comp);
 		}
 
 	}
