@@ -42,6 +42,7 @@ set(USERSPACE_PROGRAMS
 	Shell
 	sleep
 	snake
+	sort
 	stat
 	sudo
 	sync
