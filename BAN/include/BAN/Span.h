@@ -100,3 +100,22 @@ namespace BAN
 	};
 
 }
+
+#include <BAN/Formatter.h>
+
+namespace BAN::Formatter
+{
+
+	template<typename F, typename T>
+	void print_argument(F putc, const Span<T>& span, const ValueFormat& format)
+	{
+		putc('[');
+		for (typename Span<T>::size_type i = 0; i < span.size(); i++)
+		{
+			if (i != 0) putc(',');
+			print_argument(putc, span[i], format);
+		}
+		putc(']');
+	}
+
+}
