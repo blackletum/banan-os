@@ -17,6 +17,7 @@ set(USERSPACE_PROGRAMS
 	echo
 	env
 	false
+	find
 	getopt
 	http-server
 	id
