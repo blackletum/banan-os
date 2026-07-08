@@ -2,6 +2,8 @@
 
 .section .stage2
 
+.set mmap_entry_size, 24
+
 # fills memory map data structure
 # doesn't return on error
 # NO REGISTERS SAVED
@@ -12,7 +14,7 @@ get_memory_map:
 	movl $0x0000E820, %eax
 	movl $0x534D4150, %edx
 	xorl %ebx, %ebx
-	movl $20, %ecx
+	movl $mmap_entry_size, %ecx
 	movw $memory_map_entries, %di
 
 	clc
@@ -24,15 +26,15 @@ get_memory_map:
 	cmpl $0x534D4150, %eax
 	jne .get_memory_map_error
 
-	# FIXME: don't assume BIOS to always return 20 bytes
+	# confirm that we got at least 20 bytes
 	cmpl $20, %ecx
-	jne .get_memory_map_error
+	jl .get_memory_map_error
 
 	# increment entry count
 	incl (memory_map_entry_count)
 
 	# increment entry pointer
-	addw %cx, %di
+	addw $mmap_entry_size, %di
 
 	# BIOS can indicate end of list by 0 in ebx
 	testl %ebx, %ebx
@@ -107,7 +109,7 @@ print_memory_map:
 
 	call print_newline
 
-	addw $20, %si
+	addw $mmap_entry_size, %si
 
 	decl %edx
 	jnz .loop_memory_map
@@ -127,6 +129,8 @@ memory_map_error_msg:
 memory_map:
 memory_map_entry_count:
 	.skip 4
-# 100 entries should be enough...
+memory_map_padding:
+	.skip 4
+# 128 entries should be enough...
 memory_map_entries:
-	.skip 20 * 100
+	.skip mmap_entry_size * 128

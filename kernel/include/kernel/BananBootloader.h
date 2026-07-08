@@ -21,13 +21,17 @@ struct BananBootloaderMemoryMapEntry
 	uint64_t address;
 	uint64_t length;
 	uint32_t type;
-} __attribute__((packed));
+	uint32_t unused;
+};
+static_assert(sizeof(BananBootloaderMemoryMapEntry) == 24);
 
 struct BananBootloaderMemoryMapInfo
 {
 	uint32_t entry_count;
+	uint32_t padding;
 	struct BananBootloaderMemoryMapEntry entries[];
-} __attribute__((packed));
+};
+static_assert(sizeof(BananBootloaderMemoryMapInfo) == 8);
 
 struct BananBootloaderInfo
 {
@@ -35,4 +39,5 @@ struct BananBootloaderInfo
 	uint32_t framebuffer_addr;
 	uint32_t memory_map_addr;
 	uint32_t kernel_paddr;
-} __attribute__((packed));
+};
+static_assert(sizeof(BananBootloaderInfo) == 16);
