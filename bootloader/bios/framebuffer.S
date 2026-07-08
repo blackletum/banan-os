@@ -108,9 +108,11 @@ vesa_find_video_mode:
 	cmpb $0x4F, %al; jne .vesa_unsupported
 	cmpb $0x00, %ah; jne .vesa_error
 
-	# check whether in graphics mode
-	testb $0x10, (vesa_mode_info_buffer + 0)
-	jz .vesa_find_video_mode_next_mode
+	# check whether in graphics mode and linear framebuffer
+	movb (vesa_mode_info_buffer + 0), %al
+	andb $(0x80 | 0x10), %al
+	cmpb $(0x80 | 0x10), %al
+	jne .vesa_find_video_mode_next_mode
 
 	# compare mode's dimensions
 	movw -2(%ebp), %ax; cmpw %ax, (vesa_mode_info_buffer + 0x12)
