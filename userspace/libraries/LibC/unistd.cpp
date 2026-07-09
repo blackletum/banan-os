@@ -31,7 +31,7 @@ struct init_funcs_t
 
 extern "C" char** environ;
 
-#define DUMP_BACKTRACE 0
+#define DUMP_BACKTRACE 1
 #define DEMANGLE_BACKTRACE 0
 #define BACKTRACE_SIGNALS(X) X(SIGABRT) X(SIGBUS) X(SIGFPE) X(SIGILL) X(SIGSEGV)
 
