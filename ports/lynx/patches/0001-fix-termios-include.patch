@@ -1,0 +1,12 @@
+diff -ruN lynx-2.9.3/src/LYUtils.c lynx-2.9.3-banan_os/src/LYUtils.c
+--- lynx-2.9.3/src/LYUtils.c	2026-05-25 03:27:54.000000000 +0300
++++ lynx-2.9.3-banan_os/src/LYUtils.c	2026-07-09 02:54:54.881373038 +0300
+@@ -42,7 +42,7 @@
+ #if !defined(kbhit) && defined(_WCONIO_DEFINED)
+ #define kbhit() _kbhit()	/* reasonably recent conio.h */
+ #endif
+-#elif defined(__minix)
++#elif defined(__minix) || defined(__banan_os__)
+ #include <termios.h>		/* for struct winsize */
+ 
+ #endif /* __MINGW32__ */

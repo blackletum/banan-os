@@ -1,14 +1,11 @@
 #!/bin/bash ../install.sh
 
 NAME='lynx'
-VERSION='2.9.2'
-DOWNLOAD_URL="https://invisible-island.net/archives/lynx/tarballs/lynx$VERSION.tar.gz#99f8f28f860094c533100d1cedf058c27fb242ce25e991e2d5f30ece4457a3bf"
+VERSION='2.9.3'
+DOWNLOAD_URL="https://invisible-island.net/archives/lynx/tarballs/lynx$VERSION.tar.gz#6e99e46980974a6d89eceefbb26ca8c7aa7702b78ecb5bad383b859af225d052"
 TAR_CONTENT="lynx$VERSION"
-DEPENDENCIES=('ncurses' 'openssl' 'zlib')
-CONFIG_SUB=('config.sub')
+DEPENDENCIES=('ncurses' 'openssl' 'libiconv' 'bzip2' 'zlib' 'zstd')
 CONFIGURE_OPTIONS=(
-	'--without-system-type'
-	'--with-sceen=ncurses'
+	'--with-screen=ncurses'
 	'--with-ssl'
-	'--with-zlib'
 )
