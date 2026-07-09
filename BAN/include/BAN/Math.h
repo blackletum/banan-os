@@ -2,6 +2,7 @@
 
 #include <BAN/Limits.h>
 #include <BAN/Numbers.h>
+#include <BAN/Swap.h>
 #include <BAN/Traits.h>
 
 #include <float.h>
@@ -470,7 +471,17 @@ namespace BAN::Math
 	template<floating_point T>
 	inline constexpr T hypot(T x, T y)
 	{
-		return sqrt<T>(x * x + y * y);
+		x = abs(x);
+		y = abs(y);
+
+		if (x < y)
+			swap(x, y);
+
+		if (y == (T)0.0)
+			return x;
+
+		const T r = y / x;
+		return x * sqrt<T>((T)1.0 + r * r);
 	}
 
 #ifdef BAN_MATH_POP_OPTIONS
