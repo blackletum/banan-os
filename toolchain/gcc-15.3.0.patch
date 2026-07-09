@@ -1,6 +1,6 @@
-diff -ruN gcc-15.2.0/config.sub gcc-15.2.0-banan_os/config.sub
---- gcc-15.2.0/config.sub	2025-08-25 18:08:25.524209333 +0300
-+++ gcc-15.2.0-banan_os/config.sub	2025-08-25 18:09:09.160072736 +0300
+diff -ruN gcc-15.3.0/config.sub gcc-15.3.0-banan_os/config.sub
+--- gcc-15.3.0/config.sub	2026-06-12 09:09:05.607510293 +0300
++++ gcc-15.3.0-banan_os/config.sub	2026-07-09 21:47:07.527710452 +0300
 @@ -1749,7 +1749,7 @@
  	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
  	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
@@ -10,9 +10,9 @@ diff -ruN gcc-15.2.0/config.sub gcc-15.2.0-banan_os/config.sub
  		;;
  	# This one is extra strict with allowed versions
  	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)
-diff -ruN gcc-15.2.0/fixincludes/mkfixinc.sh gcc-15.2.0-banan_os/fixincludes/mkfixinc.sh
---- gcc-15.2.0/fixincludes/mkfixinc.sh	2025-08-25 18:08:42.043663414 +0300
-+++ gcc-15.2.0-banan_os/fixincludes/mkfixinc.sh	2025-08-25 18:09:09.191771254 +0300
+diff -ruN gcc-15.3.0/fixincludes/mkfixinc.sh gcc-15.3.0-banan_os/fixincludes/mkfixinc.sh
+--- gcc-15.3.0/fixincludes/mkfixinc.sh	2026-06-12 09:09:05.644510866 +0300
++++ gcc-15.3.0-banan_os/fixincludes/mkfixinc.sh	2026-07-09 21:47:07.527995337 +0300
 @@ -11,6 +11,7 @@
  
  # Check for special fix rules for particular targets
@@ -21,9 +21,9 @@ diff -ruN gcc-15.2.0/fixincludes/mkfixinc.sh gcc-15.2.0-banan_os/fixincludes/mkf
      i?86-*-cygwin* | \
      *-mingw32* | \
      powerpc-*-eabisim* | \
-diff -ruN gcc-15.2.0/gcc/config/banan_os.h gcc-15.2.0-banan_os/gcc/config/banan_os.h
---- gcc-15.2.0/gcc/config/banan_os.h	1970-01-01 02:00:00.000000000 +0200
-+++ gcc-15.2.0-banan_os/gcc/config/banan_os.h	2025-08-25 18:09:09.192159227 +0300
+diff -ruN gcc-15.3.0/gcc/config/banan_os.h gcc-15.3.0-banan_os/gcc/config/banan_os.h
+--- gcc-15.3.0/gcc/config/banan_os.h	1970-01-01 02:00:00.000000000 +0200
++++ gcc-15.3.0-banan_os/gcc/config/banan_os.h	2026-07-09 21:47:07.528236221 +0300
 @@ -0,0 +1,35 @@
 +/* Useful if you wish to make target-specific GCC changes. */
 +#undef TARGET_BANAN_OS
@@ -60,9 +60,9 @@ diff -ruN gcc-15.2.0/gcc/config/banan_os.h gcc-15.2.0-banan_os/gcc/config/banan_
 +    builtin_assert ("system=unix");     \
 +    builtin_assert ("system=posix");    \
 +  } while(0);
-diff -ruN gcc-15.2.0/gcc/config/banan_os.opt gcc-15.2.0-banan_os/gcc/config/banan_os.opt
---- gcc-15.2.0/gcc/config/banan_os.opt	1970-01-01 02:00:00.000000000 +0200
-+++ gcc-15.2.0-banan_os/gcc/config/banan_os.opt	2025-08-25 18:09:09.192299819 +0300
+diff -ruN gcc-15.3.0/gcc/config/banan_os.opt gcc-15.3.0-banan_os/gcc/config/banan_os.opt
+--- gcc-15.3.0/gcc/config/banan_os.opt	1970-01-01 02:00:00.000000000 +0200
++++ gcc-15.3.0-banan_os/gcc/config/banan_os.opt	2026-07-09 21:47:07.528330648 +0300
 @@ -0,0 +1,32 @@
 +; banan_os options.
 +
@@ -96,14 +96,14 @@ diff -ruN gcc-15.2.0/gcc/config/banan_os.opt gcc-15.2.0-banan_os/gcc/config/bana
 +Driver
 +
 +; This comment is to ensure we retain the blank line above.
-diff -ruN gcc-15.2.0/gcc/config/banan_os.opt.urls gcc-15.2.0-banan_os/gcc/config/banan_os.opt.urls
---- gcc-15.2.0/gcc/config/banan_os.opt.urls	1970-01-01 02:00:00.000000000 +0200
-+++ gcc-15.2.0-banan_os/gcc/config/banan_os.opt.urls	2025-08-25 18:09:09.192460665 +0300
+diff -ruN gcc-15.3.0/gcc/config/banan_os.opt.urls gcc-15.3.0-banan_os/gcc/config/banan_os.opt.urls
+--- gcc-15.3.0/gcc/config/banan_os.opt.urls	1970-01-01 02:00:00.000000000 +0200
++++ gcc-15.3.0-banan_os/gcc/config/banan_os.opt.urls	2026-07-09 21:47:07.528429404 +0300
 @@ -0,0 +1 @@
 +; Not sure what to put here but this works
-diff -ruN gcc-15.2.0/gcc/config.gcc gcc-15.2.0-banan_os/gcc/config.gcc
---- gcc-15.2.0/gcc/config.gcc	2025-08-25 18:08:36.953184232 +0300
-+++ gcc-15.2.0-banan_os/gcc/config.gcc	2025-08-25 18:09:09.193116622 +0300
+diff -ruN gcc-15.3.0/gcc/config.gcc gcc-15.3.0-banan_os/gcc/config.gcc
+--- gcc-15.3.0/gcc/config.gcc	2026-06-12 09:09:06.107518032 +0300
++++ gcc-15.3.0-banan_os/gcc/config.gcc	2026-07-09 21:47:07.528829877 +0300
 @@ -723,6 +723,14 @@
  
  # Common parts for widely ported systems.
@@ -132,9 +132,9 @@ diff -ruN gcc-15.2.0/gcc/config.gcc gcc-15.2.0-banan_os/gcc/config.gcc
  i[34567]86-*-dragonfly*)
  	tm_file="${tm_file} i386/unix.h i386/att.h elfos.h dragonfly.h dragonfly-stdint.h i386/dragonfly.h"
  	tmake_file="${tmake_file} i386/t-crtstuff"
-diff -ruN gcc-15.2.0/libgcc/config/t-slibgcc gcc-15.2.0-banan_os/libgcc/config/t-slibgcc
---- gcc-15.2.0/libgcc/config/t-slibgcc	2025-08-25 18:08:42.538268318 +0300
-+++ gcc-15.2.0-banan_os/libgcc/config/t-slibgcc	2025-08-25 18:09:09.206796796 +0300
+diff -ruN gcc-15.3.0/libgcc/config/t-slibgcc gcc-15.3.0-banan_os/libgcc/config/t-slibgcc
+--- gcc-15.3.0/libgcc/config/t-slibgcc	2026-06-12 09:09:10.055579142 +0300
++++ gcc-15.3.0-banan_os/libgcc/config/t-slibgcc	2026-07-09 21:47:07.529617134 +0300
 @@ -26,7 +26,6 @@
  SHLIB_OBJS = @shlib_objs@
  SHLIB_DIR = @multilib_dir@
@@ -143,9 +143,9 @@ diff -ruN gcc-15.2.0/libgcc/config/t-slibgcc gcc-15.2.0-banan_os/libgcc/config/t
  SHLIB_MAKE_SOLINK = $(LN_S) $(SHLIB_SONAME) $(SHLIB_DIR)/$(SHLIB_SOLINK)
  SHLIB_INSTALL_SOLINK = $(LN_S) $(SHLIB_SONAME) \
  	$(DESTDIR)$(slibdir)$(SHLIB_SLIBDIR_QUAL)/$(SHLIB_SOLINK)
-diff -ruN gcc-15.2.0/libgcc/config.host gcc-15.2.0-banan_os/libgcc/config.host
---- gcc-15.2.0/libgcc/config.host	2025-08-25 18:08:42.103193239 +0300
-+++ gcc-15.2.0-banan_os/libgcc/config.host	2025-08-25 18:09:09.221444143 +0300
+diff -ruN gcc-15.3.0/libgcc/config.host gcc-15.3.0-banan_os/libgcc/config.host
+--- gcc-15.3.0/libgcc/config.host	2026-06-12 09:09:09.987578090 +0300
++++ gcc-15.3.0-banan_os/libgcc/config.host	2026-07-09 21:47:07.529840209 +0300
 @@ -627,6 +627,14 @@
  	    fixed_point=no
  	fi
@@ -161,9 +161,9 @@ diff -ruN gcc-15.2.0/libgcc/config.host gcc-15.2.0-banan_os/libgcc/config.host
  bfin*-elf*)
  	tmake_file="bfin/t-bfin bfin/t-crtlibid bfin/t-crtstuff t-libgcc-pic t-fdpbit"
  	extra_parts="$extra_parts crtbeginS.o crtendS.o crti.o crtn.o crtlibid.o"
-diff -ruN gcc-15.2.0/libstdc++-v3/acinclude.m4 gcc-15.2.0-banan_os/libstdc++-v3/acinclude.m4
---- gcc-15.2.0/libstdc++-v3/acinclude.m4	2025-08-25 18:08:44.358147732 +0300
-+++ gcc-15.2.0-banan_os/libstdc++-v3/acinclude.m4	2025-08-25 18:09:09.241116556 +0300
+diff -ruN gcc-15.3.0/libstdc++-v3/acinclude.m4 gcc-15.3.0-banan_os/libstdc++-v3/acinclude.m4
+--- gcc-15.3.0/libstdc++-v3/acinclude.m4	2026-06-12 09:09:10.698589095 +0300
++++ gcc-15.3.0-banan_os/libstdc++-v3/acinclude.m4	2026-07-09 21:47:07.530425483 +0300
 @@ -1792,7 +1792,7 @@
          ac_has_nanosleep=yes
          ac_has_sched_yield=yes
@@ -173,9 +173,9 @@ diff -ruN gcc-15.2.0/libstdc++-v3/acinclude.m4 gcc-15.2.0-banan_os/libstdc++-v3/
          ac_has_clock_monotonic=yes
          ac_has_clock_realtime=yes
          ac_has_nanosleep=yes
-diff -ruN gcc-15.2.0/libstdc++-v3/configure gcc-15.2.0-banan_os/libstdc++-v3/configure
---- gcc-15.2.0/libstdc++-v3/configure	2025-08-25 18:08:47.550144038 +0300
-+++ gcc-15.2.0-banan_os/libstdc++-v3/configure	2025-08-25 18:09:09.262116528 +0300
+diff -ruN gcc-15.3.0/libstdc++-v3/configure gcc-15.3.0-banan_os/libstdc++-v3/configure
+--- gcc-15.3.0/libstdc++-v3/configure	2026-06-12 09:09:10.726589529 +0300
++++ gcc-15.3.0-banan_os/libstdc++-v3/configure	2026-07-09 21:47:07.538829690 +0300
 @@ -15784,8 +15784,8 @@
    glibcxx_compiler_shared_flag="-D_GLIBCXX_SHARED"
  
@@ -196,7 +196,7 @@ diff -ruN gcc-15.2.0/libstdc++-v3/configure gcc-15.2.0-banan_os/libstdc++-v3/con
          ac_has_clock_monotonic=yes
          ac_has_clock_realtime=yes
          ac_has_nanosleep=yes
-@@ -28654,7 +28654,7 @@
+@@ -28676,7 +28676,7 @@
      # This is a freestanding configuration; there is nothing to do here.
      ;;
  
@@ -205,9 +205,9 @@ diff -ruN gcc-15.2.0/libstdc++-v3/configure gcc-15.2.0-banan_os/libstdc++-v3/con
      $as_echo "#define HAVE_ACOSF 1" >>confdefs.h
  
      $as_echo "#define HAVE_ASINF 1" >>confdefs.h
-diff -ruN gcc-15.2.0/libstdc++-v3/crossconfig.m4 gcc-15.2.0-banan_os/libstdc++-v3/crossconfig.m4
---- gcc-15.2.0/libstdc++-v3/crossconfig.m4	2025-08-25 18:08:47.570807934 +0300
-+++ gcc-15.2.0-banan_os/libstdc++-v3/crossconfig.m4	2025-08-25 18:09:09.263116526 +0300
+diff -ruN gcc-15.3.0/libstdc++-v3/crossconfig.m4 gcc-15.3.0-banan_os/libstdc++-v3/crossconfig.m4
+--- gcc-15.3.0/libstdc++-v3/crossconfig.m4	2026-06-12 09:09:10.727589544 +0300
++++ gcc-15.3.0-banan_os/libstdc++-v3/crossconfig.m4	2026-07-09 21:47:07.540758931 +0300
 @@ -9,7 +9,7 @@
      # This is a freestanding configuration; there is nothing to do here.
      ;;
