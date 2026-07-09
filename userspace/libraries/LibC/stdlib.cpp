@@ -574,7 +574,7 @@ static void qsort_swap_generic(void* lhs, void* rhs, size_t width)
 	}
 }
 
-void qsort_swap(void* lhs, void* rhs, size_t width)
+static void qsort_swap(void* lhs, void* rhs, size_t width)
 {
 	switch (width)
 	{
