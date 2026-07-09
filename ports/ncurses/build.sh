@@ -9,15 +9,20 @@ CONFIGURE_OPTIONS=(
 	"--with-pkg-config-libdir=/usr/lib/pkgconfig"
 	'--enable-pc-files'
 	'--enable-sigwinch'
-	'--disable-widec'
 	'--with-shared'
-	'--with-trace'
+	'--without-tests'
 	'--without-ada'
 	'--without-manpages'
 	CFLAGS='-std=c17'
 )
 
 post_install() {
+	for lib in ncurses ncurses++ form panel menu; do
+		ln -sv ${lib}w.pc "$DESTDIR/usr/lib/pkgconfig/$lib.pc"
+	done
+
+	ln -sv libncursesw.so "$DESTDIR/usr/lib/libncurses.so"
+
 	shellrc="$BANAN_SYSROOT/home/user/.shellrc"
 	grep -q 'export NCURSES_NO_UTF8_ACS=' "$shellrc" || echo 'export NCURSES_NO_UTF8_ACS=1' >> "$shellrc"
 }
