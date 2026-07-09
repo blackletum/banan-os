@@ -310,36 +310,6 @@ namespace BAN::Math
 	}
 
 	template<floating_point T>
-	inline constexpr T scalbn(T x, int n)
-	{
-		asm("fscale" : "+t"(x) : "u"(static_cast<T>(n)));
-		return x;
-	}
-
-	template<floating_point T>
-	inline constexpr T ldexp(T x, int y)
-	{
-		const bool exp_sign = y < 0;
-		if (exp_sign)
-			y = -y;
-
-		T exp = (T)1.0;
-		T mult = (T)2.0;
-		while (y)
-		{
-			if (y & 1)
-				exp *= mult;
-			mult *= mult;
-			y >>= 1;
-		}
-
-		if (exp_sign)
-			exp = (T)1.0 / exp;
-
-		return x * exp;
-	}
-
-	template<floating_point T>
 	inline constexpr T sqrt(T x)
 	{
 		if constexpr(BAN::is_same_v<T, float>)

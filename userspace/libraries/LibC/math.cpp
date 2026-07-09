@@ -1,5 +1,6 @@
 #include <BAN/Math.h>
 
+#include <errno.h>
 #include <math.h>
 #include <stddef.h>
 
@@ -156,6 +157,36 @@ static T1 nextafter_impl(T1 x, T2 y)
 	return decompose.raw;
 }
 
+template<BAN::floating_point T>
+static T ldexp_impl(T x, long e)
+{
+	// scalb{,l}n
+	static_assert(FLT_RADIX == 2);
+
+	if (e == 0 || x == (T)0.0 || isnan(x) || !isfinite(x))
+		return x;
+
+	// TODO: handle subnormals
+
+	FloatDecompose<T> decompose(x);
+
+	if (e < 0 && decompose.bits.exponent < -e)
+	{
+		errno = ERANGE;
+		return BAN::Math::copysign((T)0.0, x);
+	}
+
+	if (e > 0 && decompose.bits.exponent > decompose.exponent_max - e)
+	{
+		errno = ERANGE;
+		return BAN::Math::copysign(BAN::numeric_limits<T>::infinity(), x);
+	}
+
+	decompose.bits.exponent += e;
+
+	return decompose.raw;
+}
+
 static long double tgamma_impl(long double x)
 {
 	constexpr long double pi = BAN::numbers::pi_v<long double>;
@@ -199,7 +230,7 @@ static long double erf_impl(long double x)
 {
 	long double sum = 0.0L;
 	for (size_t n = 0; n < 100; n++)
-		sum += x / (2.0L * n + 1.0L) * BAN::Math::ldexp(-x * x, n) / tgamma_impl(n + 1.0L);
+		sum += x / (2.0L * n + 1.0L) * ldexp_impl(-x * x, n) / tgamma_impl(n + 1.0L);
 
 	constexpr long double sqrt_pi = 1.77245385090551602729L;
 	return 2.0L / sqrt_pi * sum;
@@ -237,7 +268,7 @@ BAN_FUNC2_TYPE(frexp, int*)
 BAN_FUNC2(hypot)
 FUNC_EXPR1_RET(ilogb, int, BAN::Math::logb(a))
 // j0, j1, jn
-BAN_FUNC2_TYPE(ldexp, int)
+FUNC_EXPR2_TYPE(ldexp, int, ldexp_impl(a, b));
 FUNC_EXPR1(lgamma, BAN::Math::log(BAN::Math::abs(tgamma_impl(a))))
 FUNC_EXPR1_RET(llrint,  long long, BAN::Math::rint(a))
 FUNC_EXPR1_RET(llround, long long, BAN::Math::round(a))
@@ -260,8 +291,8 @@ BAN_FUNC2(remainder)
 // remquo
 BAN_FUNC1(rint)
 FUNC_EXPR1(round, ({ if (!isfinite(a)) return a; BAN::Math::round(a); }))
-FUNC_EXPR2_TYPE(scalbln, long, BAN::Math::scalbn(a, b))
-FUNC_EXPR2_TYPE(scalbn,  int,  BAN::Math::scalbn(a, b))
+FUNC_EXPR2_TYPE(scalbln, long, ldexp_impl(a, b))
+FUNC_EXPR2_TYPE(scalbn,  int,  ldexp_impl(a, b))
 BAN_FUNC1(sin)
 BAN_FUNC1(sinh)
 BAN_FUNC1(sqrt)
