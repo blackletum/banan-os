@@ -355,13 +355,12 @@ int mblen(const char* s, size_t n)
 		return 0;
 	if (n == 0)
 		return -1;
-	switch (__getlocale(LC_CTYPE))
+
+	switch (__getlocale(LC_CTYPE)->encoding)
 	{
-		case LOCALE_INVALID:
-			ASSERT_NOT_REACHED();
-		case LOCALE_POSIX:
+		case __ENC_ASCII:
 			return 1;
-		case LOCALE_UTF8:
+		case __ENC_UTF8:
 			const auto bytes = BAN::UTF8::byte_length(*s);
 			if (bytes == BAN::UTF8::invalid)
 				return -1;
@@ -369,6 +368,7 @@ int mblen(const char* s, size_t n)
 				return -1;
 			return bytes;
 	}
+
 	ASSERT_NOT_REACHED();
 }
 
@@ -378,15 +378,13 @@ int mbtowc(wchar_t* __restrict pwc, const char* __restrict s, size_t n)
 	if (s == nullptr)
 		return 0;
 
-	switch (__getlocale(LC_CTYPE))
+	switch (__getlocale(LC_CTYPE)->encoding)
 	{
-		case LOCALE_INVALID:
-			ASSERT_NOT_REACHED();
-		case LOCALE_POSIX:
+		case __ENC_ASCII:
 			if (pwc != nullptr)
 				*pwc = *s;
 			return *s ? 1 : 0;
-		case LOCALE_UTF8:
+		case __ENC_UTF8:
 			const auto* us = reinterpret_cast<const unsigned char*>(s);
 
 			const uint32_t length = BAN::UTF8::byte_length(*us);
@@ -416,17 +414,16 @@ size_t mbstowcs(wchar_t* __restrict pwcs, const char* __restrict s, size_t n)
 {
 	size_t written = 0;
 
-	switch (__getlocale(LC_CTYPE))
+	switch (__getlocale(LC_CTYPE)->encoding)
 	{
-		case LOCALE_INVALID:
-			ASSERT_NOT_REACHED();
-		case LOCALE_POSIX:
+		case __ENC_ASCII:
 			if (pwcs == nullptr)
 				written = strlen(s);
 			else for (; s[written] && written < n; written++)
 				pwcs[written] = s[written];
 			break;
-		case LOCALE_UTF8:
+		case __ENC_UTF8:
+		{
 			const auto* us = reinterpret_cast<const unsigned char*>(s);
 			for (; *us && (pwcs == nullptr || written < n); written++)
 			{
@@ -441,6 +438,9 @@ size_t mbstowcs(wchar_t* __restrict pwcs, const char* __restrict s, size_t n)
 				us += BAN::UTF8::byte_length(*us);
 			}
 			break;
+		}
+		default:
+			ASSERT_NOT_REACHED();
 	}
 
 	if (pwcs != nullptr && written < n)
@@ -454,14 +454,12 @@ int wctomb(char* s, wchar_t wchar)
 	if (s == nullptr)
 		return 0;
 
-	switch (__getlocale(LC_CTYPE))
+	switch (__getlocale(LC_CTYPE)->encoding)
 	{
-		case locale_t::LOCALE_INVALID:
-			ASSERT_NOT_REACHED();
-		case locale_t::LOCALE_POSIX:
+		case __ENC_ASCII:
 			*s = wchar;
 			return wchar ? 1 : 0;
-		case locale_t::LOCALE_UTF8:
+		case __ENC_UTF8:
 			char buffer[5];
 			if (!BAN::UTF8::from_codepoints(&wchar, 1, buffer))
 				return -1;
@@ -477,11 +475,9 @@ size_t wcstombs(char* __restrict s, const wchar_t* __restrict pwcs, size_t n)
 {
 	size_t written = 0;
 
-	switch (__getlocale(LC_CTYPE))
+	switch (__getlocale(LC_CTYPE)->encoding)
 	{
-		case locale_t::LOCALE_INVALID:
-			ASSERT_NOT_REACHED();
-		case locale_t::LOCALE_POSIX:
+		case __ENC_ASCII:
 			for (size_t i = 0; pwcs[i] && (s == nullptr || written < n); i++)
 			{
 				if (pwcs[i] > 0xFF)
@@ -491,7 +487,7 @@ size_t wcstombs(char* __restrict s, const wchar_t* __restrict pwcs, size_t n)
 				written++;
 			}
 			break;
-		case locale_t::LOCALE_UTF8:
+		case __ENC_UTF8:
 			for (size_t i = 0; pwcs[i] && (s == nullptr || written < n); i++)
 			{
 				char buffer[5];
@@ -507,6 +503,8 @@ size_t wcstombs(char* __restrict s, const wchar_t* __restrict pwcs, size_t n)
 				written += len;
 			}
 			break;
+		default:
+			ASSERT_NOT_REACHED();
 	}
 
 	if (s && written < n)

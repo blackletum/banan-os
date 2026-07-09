@@ -7,10 +7,13 @@
 
 __BEGIN_DECLS
 
-#ifndef __locale_t_defined
-	#define __locale_t_defined 1
-	typedef enum { LOCALE_INVALID, LOCALE_POSIX, LOCALE_UTF8 } locale_t;
-#endif
+typedef enum { __ENC_ASCII, __ENC_UTF8 } __encoding_e;
+struct __locale_t
+{
+	const char* name;
+	__encoding_e encoding;
+};
+typedef struct __locale_t* locale_t;
 
 __END_DECLS
 

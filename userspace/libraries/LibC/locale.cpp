@@ -5,35 +5,37 @@
 #include <stdio.h>
 #include <string.h>
 
+static __locale_t s_locale_posix {
+	.name = "C",
+	.encoding = __ENC_ASCII,
+};
+static __locale_t s_locale_utf8 {
+	.name = "C.UTF-8",
+	.encoding = __ENC_UTF8,
+};
+
 static locale_t s_current_locales[LC_ALL] {
-	LOCALE_POSIX,
-	LOCALE_POSIX,
-	LOCALE_POSIX,
-	LOCALE_POSIX,
-	LOCALE_POSIX,
-	LOCALE_POSIX,
+	&s_locale_posix,
+	&s_locale_posix,
+	&s_locale_posix,
+	&s_locale_posix,
+	&s_locale_posix,
+	&s_locale_posix,
 };
 static_assert(LC_ALL == 6);
 
 static locale_t str_to_locale(const char* locale)
 {
 	if (*locale == '\0')
-		return LOCALE_UTF8;
+		return &s_locale_utf8;
 
-	if (strcmp(locale, "C") == 0 || strcmp(locale, "LOCALE_POSIX") == 0)
-		return LOCALE_POSIX;
+	if (strcmp(locale, "C") == 0 || strcmp(locale, "POSIX") == 0)
+		return &s_locale_posix;
+
 	if (strcmp(locale, "C.UTF-8") == 0)
-		return LOCALE_UTF8;
-	return LOCALE_INVALID;
-}
+		return &s_locale_utf8;
 
-static const char* locale_to_str(locale_t locale)
-{
-	if (locale == LOCALE_POSIX)
-		return "C";
-	if (locale == LOCALE_UTF8)
-		return "C.UTF-8";
-	ASSERT_NOT_REACHED();
+	return nullptr;
 }
 
 struct lconv* localeconv(void)
@@ -80,17 +82,18 @@ char* setlocale(int category, const char* locale_str)
 			case LC_MONETARY:
 			case LC_NUMERIC:
 			case LC_TIME:
-				strcpy(s_locale_buffer, locale_to_str(s_current_locales[category]));
+				strcpy(s_locale_buffer, s_current_locales[category]->name);
 				break;
 			case LC_ALL:
 				sprintf(s_locale_buffer, "%s;%s;%s;%s;%s;%s",
-					locale_to_str(s_current_locales[0]),
-					locale_to_str(s_current_locales[1]),
-					locale_to_str(s_current_locales[2]),
-					locale_to_str(s_current_locales[3]),
-					locale_to_str(s_current_locales[4]),
-					locale_to_str(s_current_locales[5])
+					s_current_locales[0]->name,
+					s_current_locales[1]->name,
+					s_current_locales[2]->name,
+					s_current_locales[3]->name,
+					s_current_locales[4]->name,
+					s_current_locales[5]->name
 				);
+				static_assert(LC_ALL == 6);
 				break;
 			default:
 				return nullptr;
@@ -100,7 +103,7 @@ char* setlocale(int category, const char* locale_str)
 	}
 
 	locale_t locale = str_to_locale(locale_str);
-	if (locale == LOCALE_INVALID)
+	if (locale == nullptr)
 		return nullptr;
 
 	switch (category)
@@ -121,7 +124,7 @@ char* setlocale(int category, const char* locale_str)
 			return nullptr;
 	}
 
-	strcpy(s_locale_buffer, locale_to_str(locale));
+	strcpy(s_locale_buffer, locale->name);
 	return s_locale_buffer;
 }
 
@@ -137,6 +140,30 @@ locale_t __getlocale(int category)
 		case LC_TIME:
 			return s_current_locales[category];
 		default:
-			return LOCALE_INVALID;
+			return nullptr;
 	}
+}
+
+#include <BAN/Debug.h>
+
+locale_t newlocale(int category_mask, const char* locale, locale_t base)
+{
+	(void)category_mask;
+	(void)locale;
+	(void)base;
+	dwarnln("TODO: newlocale");
+	return nullptr;
+}
+
+void freelocale(locale_t locobj)
+{
+	(void)locobj;
+	dwarnln("TODO: freelocale");
+}
+
+locale_t uselocale(locale_t newloc)
+{
+	(void)newloc;
+	dwarnln("TODO: uselocale");
+	return nullptr;
 }

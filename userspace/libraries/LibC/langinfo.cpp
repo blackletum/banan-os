@@ -8,11 +8,10 @@ static const char* nl_langinfo_impl(nl_item item)
 	// only codeset is affected by current locales
 	if (item == CODESET)
 	{
-		switch (__getlocale(LC_CTYPE))
+		switch (__getlocale(LC_CTYPE)->encoding)
 		{
-			case LOCALE_INVALID: ASSERT_NOT_REACHED();
-			case LOCALE_UTF8:    return "UTF-8";
-			case LOCALE_POSIX:   return "ANSI_X3.4-1968";
+			case __ENC_ASCII:   return "ANSI_X3.4-1968";
+			case __ENC_UTF8:    return "UTF-8";
 		}
 		ASSERT_NOT_REACHED();
 	}

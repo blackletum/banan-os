@@ -162,13 +162,11 @@ int strcoll(const char* s1, const char* s2)
 
 int strcoll_l(const char *s1, const char *s2, locale_t locale)
 {
-	switch (locale)
+	switch (locale->encoding)
 	{
-		case LOCALE_INVALID:
-			ASSERT_NOT_REACHED();
-		case LOCALE_POSIX:
+		case __ENC_ASCII:
 			return strcmp(s1, s2);
-		case LOCALE_UTF8:
+		case __ENC_UTF8:
 		{
 			const unsigned char* u1 = (unsigned char*)s1;
 			const unsigned char* u2 = (unsigned char*)s2;
@@ -195,6 +193,7 @@ int strcoll_l(const char *s1, const char *s2, locale_t locale)
 			return wc1 - wc2;
 		}
 	}
+
 	ASSERT_NOT_REACHED();
 }
 
