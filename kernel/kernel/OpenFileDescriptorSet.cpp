@@ -376,6 +376,9 @@ namespace Kernel
 				return BAN::Error::from_errno(EINVAL);
 		}
 
+		if (BAN::Math::will_addition_overflow(base_offset, offset))
+			return BAN::Error::from_errno(EOVERFLOW);
+
 		const off_t new_offset = base_offset + offset;
 		if (new_offset < 0)
 			return BAN::Error::from_errno(EINVAL);
