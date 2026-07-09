@@ -10,6 +10,8 @@ __BEGIN_DECLS
 #define __need_pid_t
 #include <sys/types.h>
 
+#include <bits/types/winsize.h>
+
 typedef unsigned int cc_t;
 typedef unsigned int speed_t;
 typedef unsigned int tcflag_t;
@@ -37,14 +39,6 @@ struct termios
 	cc_t		c_cc[NCCS];	/* Control characters. */
 	speed_t     c_ospeed;
 	speed_t     c_ispeed;
-};
-
-struct winsize
-{
-	unsigned short ws_row;
-	unsigned short ws_col;
-	unsigned short ws_xpixel; /* unused by kernel */
-	unsigned short ws_ypixel; /* unused by kernel */
 };
 
 #define BRKINT	0x001

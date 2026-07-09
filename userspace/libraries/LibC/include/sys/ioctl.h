@@ -7,6 +7,8 @@ __BEGIN_DECLS
 
 #include <stdint.h>
 
+#include <bits/types/winsize.h>
+
 #define I_ATMARK	1
 #define I_CANPUT	2
 #define I_CKBAND	3
