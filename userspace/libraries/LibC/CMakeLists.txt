@@ -32,6 +32,7 @@ set(LIBC_SOURCES
 	regex.cpp
 	scanf_impl.cpp
 	sched.cpp
+	search.cpp
 	semaphore.cpp
 	setjmp.cpp
 	signal.cpp
