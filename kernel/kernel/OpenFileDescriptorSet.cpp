@@ -354,6 +354,35 @@ namespace Kernel
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
+	BAN::ErrorOr<long> OpenFileDescriptorSet::ioctl(int fd, unsigned long request, void* arg)
+	{
+		BAN::RefPtr<Inode> inode;
+
+		{
+			LockGuard _(m_mutex);
+
+			TRY(validate_fd(fd));
+
+			switch (request)
+			{
+				case FIONBIO:
+				{
+					int enabled;
+					TRY(read_from_user(arg, &enabled, sizeof(int)));
+					if (enabled)
+						m_open_files[fd]->status_flags |= O_NONBLOCK;
+					else
+						m_open_files[fd]->status_flags &= ~O_NONBLOCK;
+					return 0;
+				}
+			}
+
+			inode = m_open_files[fd]->file.inode;
+		}
+
+		return inode->ioctl(request, arg);
+	}
+
 	BAN::ErrorOr<off_t> OpenFileDescriptorSet::seek(int fd, off_t offset, int whence)
 	{
 		LockGuard _(m_mutex);

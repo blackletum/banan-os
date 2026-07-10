@@ -2049,8 +2049,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_ioctl(int fildes, unsigned long request, void* arg)
 	{
-		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
-		return TRY(inode->ioctl(request, arg));
+		return m_open_file_descriptors.ioctl(fildes, request, arg);
 	}
 
 	BAN::ErrorOr<long> Process::sys_pselect(sys_pselect_t* user_arguments)
