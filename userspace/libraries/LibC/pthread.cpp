@@ -31,6 +31,8 @@ static pthread_attr_t s_default_pthread_attr {
 	.guardsize    = static_cast<size_t>(getpagesize()),
 };
 
+static BAN::Atomic<struct uthread*> s_pending_uthread_deletion { nullptr };
+
 static void _pthread_cancel_handler(int)
 {
 	uthread* uthread = _get_uthread();
@@ -122,35 +124,18 @@ extern "C" void _pthread_trampoline_cpp(void* arg)
 
 static void free_uthread(uthread* uthread)
 {
-	const auto lock_dynamic_tls =
-		[uthread] {
-			int expected = 0;
-			while (BAN::atomic_compare_exchange(uthread->dynamic_tls->lock, expected, 1))
-			{
-				sched_yield();
-				expected = 0;
-			}
-		};
-
-	const auto unlock_dynamic_tls =
-		[uthread] {
-			BAN::atomic_store(uthread->dynamic_tls->lock, 0);
-		};
-
-	for (size_t i = uthread->master_tls_module_count; i < uthread->dtv[0]; i++)
+	for (size_t i = uthread->master_tls_module_count + 1; i <= uthread->dtv[0]; i++)
 	{
 		if (uthread->dtv[i] == 0)
 			continue;
-
-		lock_dynamic_tls();
-		const size_t size = uthread->dynamic_tls->entries[i].master_size;
-		unlock_dynamic_tls();
-
-		munmap(reinterpret_cast<void*>(uthread->dtv[i]), size);
+		munmap(
+			reinterpret_cast<void*>(uthread->dtv[i]),
+			uthread->dynamic_tls->entries[i].master_size
+		);
 	}
 
 	if (uthread->libc_owns_stack)
-		munmap(static_cast<uint8_t*>(uthread->attr.stackaddr) - uthread->attr.guardsize, uthread->attr.guardsize + uthread->attr.stacksize);
+		munmap(static_cast<uint8_t*>(uthread->attr.stackaddr) - uthread->attr.guardsize, uthread->attr.stacksize + uthread->attr.guardsize);
 
 	uint8_t* tls_addr = reinterpret_cast<uint8_t*>(uthread) - uthread->master_tls_size;
 	const size_t tls_size = uthread->master_tls_size + sizeof(struct uthread);
@@ -448,9 +433,6 @@ int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restric
 		if (tls_addr == MAP_FAILED)
 			goto pthread_create_error;
 
-		if (self->master_tls_addr)
-			memcpy(tls_addr, self->master_tls_addr, self->master_tls_size);
-
 		uthread* uthread = reinterpret_cast<struct uthread*>(tls_addr + self->master_tls_size);
 		*uthread = {
 			.self = uthread,
@@ -473,12 +455,21 @@ int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restric
 		};
 		strcpy(uthread->name, self->name);
 
+		if (self->master_tls_addr && self->master_tls_size)
+			memcpy(tls_addr, self->master_tls_addr, self->master_tls_size);
+
+		const ptrdiff_t dtv_offset = reinterpret_cast<uint8_t*>(uthread) - reinterpret_cast<uint8_t*>(self);
+		for (size_t i = 1; i <= self->master_tls_module_count; i++)
+			uthread->dtv[i] = self->dtv[i] + dtv_offset;
+
+		info->uthread = uthread;
+
 		if (uthread->attr.stackaddr == nullptr)
 		{
 			ASSERT(uthread->attr.stacksize % getpagesize() == 0);
 			ASSERT(uthread->attr.guardsize % getpagesize() == 0);
 
-			void* stack_addr = mmap(nullptr, uthread->attr.guardsize + uthread->attr.stacksize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+			void* stack_addr = mmap(nullptr, uthread->attr.stacksize + uthread->attr.guardsize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 			if (stack_addr == nullptr)
 				goto pthread_create_error;
 			uthread->attr.stackaddr = static_cast<uint8_t*>(stack_addr) + uthread->attr.guardsize;
@@ -488,12 +479,6 @@ int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restric
 				goto pthread_create_error;
 		}
 
-		const uintptr_t self_addr = reinterpret_cast<uintptr_t>(self);
-		const uintptr_t uthread_addr = reinterpret_cast<uintptr_t>(uthread);
-		for (size_t i = 1; i <= self->master_tls_module_count; i++)
-			uthread->dtv[i] = self->dtv[i] - self_addr + uthread_addr;
-
-		info->uthread = uthread;
 		result = uthread;
 	}
 
@@ -558,8 +543,26 @@ void pthread_exit(void* value_ptr)
 	}
 
 	if (uthread->attr.detachstate == PTHREAD_CREATE_DETACHED)
+	{
+		if (uthread->libc_owns_stack)
+		{
+			if (auto* pending = s_pending_uthread_deletion.exchange(uthread))
+			{
+				while (BAN::atomic_load(pending->id) != -1)
+					sched_yield();
+				free_uthread(pending);
+			}
+			// NOTE: after this store, our stack may get deleted but it should be *fine*
+			BAN::atomic_store(uthread->id, -1);
+			_kas_syscall(SYS_THREAD_EXIT, nullptr);
+			__builtin_trap();
+		}
+
 		free_uthread(uthread);
+	}
+
 	syscall(SYS_THREAD_EXIT, value_ptr);
+
 	ASSERT_NOT_REACHED();
 }
 
@@ -1400,6 +1403,8 @@ static void load_dynamic_tls_module(size_t module)
 
 	memcpy(dtv_data, entry.master_addr, entry.master_size);
 
+	if (module > uthread->dtv[0])
+		uthread->dtv[0]= module;
 	uthread->dtv[module] = reinterpret_cast<uintptr_t>(dtv_data);
 }
 
