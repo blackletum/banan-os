@@ -264,10 +264,12 @@ void* malloc(size_t total_size)
 		if (new_allocators == MAP_FAILED)
 			goto malloc_return;
 
-		static_assert(BAN::is_trivially_copyable_v<BitmapAllocator>);
-		memcpy(new_allocators, s_allocators, s_allocator_count * sizeof(BitmapAllocator));
-
-		munmap(s_allocators, s_allocator_capacity * sizeof(BitmapAllocator));
+		if (s_allocators != nullptr)
+		{
+			static_assert(BAN::is_trivially_copyable_v<BitmapAllocator>);
+			memcpy(new_allocators, s_allocators, s_allocator_count * sizeof(BitmapAllocator));
+			munmap(s_allocators, s_allocator_capacity * sizeof(BitmapAllocator));
+		}
 
 		s_allocators = static_cast<BitmapAllocator*>(new_allocators);
 		s_allocator_capacity = new_allocator_pages * page_size / sizeof(BitmapAllocator);
