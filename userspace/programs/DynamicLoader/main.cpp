@@ -152,7 +152,6 @@ struct LoadedElf
 	ElfNativeProgramHeader tls_header;
 	ElfNativeDynamic* dynamics;
 
-	uint8_t* tls_addr;
 	size_t tls_module;
 	size_t tls_offset;
 
@@ -659,21 +658,21 @@ static void relocate_elf(LoadedElf& elf, bool lazy_load)
 		relocate_elf(*reinterpret_cast<LoadedElf*>(dynamic.d_un.d_ptr), lazy_load);
 	}
 
-	// do "normal" relocations
+	// do mandatory relocations
 	if (elf.rel && elf.relent)
+	{
 		for (size_t i = 0; i < elf.relsz / elf.relent; i++)
 			handle_relocation(elf, *reinterpret_cast<ElfNativeRelocation*>(elf.rel + i * elf.relent), true);
-	if (elf.rela && elf.relaent)
-		for (size_t i = 0; i < elf.relasz / elf.relaent; i++)
-			handle_relocation(elf, *reinterpret_cast<ElfNativeRelocationA*>(elf.rela + i * elf.relaent), true);
-
-	// do tls relocations
-	if (elf.rel && elf.relent)
 		for (size_t i = 0; i < elf.relsz / elf.relent; i++)
 			handle_tls_relocation(elf, *reinterpret_cast<ElfNativeRelocation*>(elf.rel + i * elf.relent));
+	}
 	if (elf.rela && elf.relaent)
+	{
+		for (size_t i = 0; i < elf.relasz / elf.relaent; i++)
+			handle_relocation(elf, *reinterpret_cast<ElfNativeRelocationA*>(elf.rela + i * elf.relaent), true);
 		for (size_t i = 0; i < elf.relasz / elf.relaent; i++)
 			handle_tls_relocation(elf, *reinterpret_cast<ElfNativeRelocationA*>(elf.rela + i * elf.relaent));
+	}
 
 	// do jumprel relocations
 	if (elf.jmprel && elf.pltrelsz)
@@ -1226,7 +1225,6 @@ static MasterTLS initialize_tls_stage1()
 
 	size_t max_align = alignof(uthread);
 	size_t tls_m_offset = 0;
-	size_t tls_m_size = 0;
 	size_t module_count = 0;
 	for (size_t i = 0; i < s_loaded_file_count; i++)
 	{
@@ -1238,7 +1236,6 @@ static MasterTLS initialize_tls_stage1()
 
 		max_align = max<size_t>(max_align, tls_header.p_align);
 		tls_m_offset = round(tls_m_offset + tls_header.p_memsz, tls_header.p_align);
-		tls_m_size = tls_header.p_memsz;
 
 		module_count++;
 	}
@@ -1246,7 +1243,7 @@ static MasterTLS initialize_tls_stage1()
 	if (module_count == 0)
 		return { .addr = nullptr, .size = 0, .module_count = 0 };
 
-	size_t master_tls_size = tls_m_offset + tls_m_size;
+	size_t master_tls_size = tls_m_offset;
 	if (auto rem = master_tls_size % max_align)
 		master_tls_size += max_align - rem;
 
@@ -1268,7 +1265,8 @@ static MasterTLS initialize_tls_stage1()
 		master_tls_addr = reinterpret_cast<uint8_t*>(ret);
 	}
 
-	for (size_t i = 0, tls_offset = 0; i < s_loaded_file_count; i++)
+	size_t tls_offset = 0;
+	for (size_t i = 0; i < s_loaded_file_count; i++)
 	{
 		const auto& tls_header = s_loaded_files[i].tls_header;
 		if (tls_header.p_type != PT_TLS)
@@ -1277,7 +1275,6 @@ static MasterTLS initialize_tls_stage1()
 		tls_offset = round(tls_offset + tls_header.p_memsz, tls_header.p_align);
 
 		auto& elf = s_loaded_files[i];
-		elf.tls_addr = master_tls_addr + master_tls_size - tls_offset;
 		elf.tls_module = s_tls_module++;
 		elf.tls_offset = tls_offset;
 	}
@@ -1312,17 +1309,15 @@ static void allocate_dynamic_tls()
 	};
 }
 
-static void initialize_tls_memory()
+static void initialize_master_tls_data(MasterTLS master_tls)
 {
 	for (size_t i = 0; i < s_loaded_file_count; i++)
 	{
 		const auto& tls_header = s_loaded_files[i].tls_header;
 		if (tls_header.p_type != PT_TLS)
 			continue;
-
-		auto& elf = s_loaded_files[i];
-		memcpy(elf.tls_addr, reinterpret_cast<void*>(tls_header.p_vaddr), tls_header.p_filesz);
-		memset(elf.tls_addr + tls_header.p_filesz, 0, tls_header.p_memsz - tls_header.p_filesz);
+		uint8_t* master_addr = master_tls.addr + master_tls.size - s_loaded_files[i].tls_offset;
+		memcpy(master_addr, reinterpret_cast<void*>(tls_header.p_vaddr), tls_header.p_filesz);
 	}
 }
 
@@ -1330,16 +1325,14 @@ static void initialize_tls_stage2(MasterTLS master_tls)
 {
 	allocate_dynamic_tls();
 
-	initialize_tls_memory();
-
-	const size_t tls_size = master_tls.size + sizeof(uthread);
+	initialize_master_tls_data(master_tls);
 
 	uint8_t* tls_addr;
 
 	{
 		const sys_mmap_t mmap_args {
 			.addr = nullptr,
-			.len = tls_size,
+			.len = master_tls.size + sizeof(uthread),
 			.prot = PROT_READ | PROT_WRITE,
 			.flags = MAP_ANONYMOUS | MAP_PRIVATE,
 			.fildes = -1,
@@ -1348,14 +1341,11 @@ static void initialize_tls_stage2(MasterTLS master_tls)
 
 		const auto ret = syscall(SYS_MMAP, &mmap_args);
 		if (ret < 0)
-			print_error_and_exit("failed to allocate master TLS", ret);
+			print_error_and_exit("failed to allocate TLS", ret);
 		tls_addr = reinterpret_cast<uint8_t*>(ret);
 	}
 
-	memcpy(tls_addr, master_tls.addr, master_tls.size);
-
 	uthread& uthread = *reinterpret_cast<struct uthread*>(tls_addr + master_tls.size);
-	memset(&uthread, 0, sizeof(uthread));
 
 	uthread.self = &uthread;
 	uthread.master_tls_addr = master_tls.addr,
@@ -1375,9 +1365,11 @@ static void initialize_tls_stage2(MasterTLS master_tls)
 	for (size_t i = 0; i < s_loaded_file_count; i++)
 	{
 		const auto& elf = s_loaded_files[i];
-		if (elf.tls_addr == nullptr)
+		if (elf.tls_header.p_type != PT_TLS)
 			continue;
-		uthread.dtv[elf.tls_module] = reinterpret_cast<uintptr_t>(tls_addr) + uthread.master_tls_size - elf.tls_offset;
+		const ptrdiff_t offset = master_tls.size - elf.tls_offset;
+		memcpy(tls_addr + offset, master_tls.addr + offset, elf.tls_header.p_filesz);
+		uthread.dtv[elf.tls_module] = reinterpret_cast<uintptr_t>(tls_addr + offset);
 	}
 
 #if defined(__x86_64__)
@@ -1504,6 +1496,8 @@ static void register_fini_funcs(LoadedElf& elf, bool is_main_elf)
 
 static void load_dynamic_tls(LoadedElf& elf)
 {
+	uint8_t* tls_addr;
+
 	{
 		const sys_mmap_t mmap_args {
 			.addr = nullptr,
@@ -1517,11 +1511,10 @@ static void load_dynamic_tls(LoadedElf& elf)
 		const auto ret = syscall(SYS_MMAP, &mmap_args);
 		if (ret < 0)
 			print_error_and_exit("failed to allocate dynamic TLS", ret);
-
-		elf.tls_addr = reinterpret_cast<uint8_t*>(ret);
-		memcpy(elf.tls_addr, reinterpret_cast<void*>(elf.tls_header.p_vaddr), elf.tls_header.p_filesz);
-		memset(elf.tls_addr + elf.tls_header.p_filesz, 0, elf.tls_header.p_memsz - elf.tls_header.p_filesz);
+		tls_addr = reinterpret_cast<uint8_t*>(ret);
 	}
+
+	memcpy(tls_addr, reinterpret_cast<void*>(elf.tls_header.p_vaddr), elf.tls_header.p_filesz);
 
 	int expected = 0;
 	while (!BAN::atomic_compare_exchange(s_dynamic_tls->lock, expected, 1))
@@ -1531,7 +1524,7 @@ static void load_dynamic_tls(LoadedElf& elf)
 	}
 
 	s_dynamic_tls->entries[s_dynamic_tls->entry_count++] = {
-		.master_addr = elf.tls_addr,
+		.master_addr = tls_addr,
 		.master_size = elf.tls_header.p_memsz,
 	};
 
