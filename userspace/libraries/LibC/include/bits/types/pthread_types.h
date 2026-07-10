@@ -13,7 +13,7 @@ __BEGIN_DECLS
 
 #include <stdint.h>
 
-typedef int pthread_once_t;
+typedef uint32_t pthread_once_t;
 
 typedef pthread_t pthread_spinlock_t;
 

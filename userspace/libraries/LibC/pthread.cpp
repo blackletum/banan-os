@@ -591,10 +591,14 @@ int pthread_once(pthread_once_t* once_control, void (*init_routine)(void))
 	{
 		init_routine();
 		BAN::atomic_store(*once_control, 2);
+		futex(FUTEX_WAKE_PRIVATE, once_control, -1, nullptr);
+	}
+	else
+	{
+		while (BAN::atomic_load(*once_control) == 1)
+			futex(FUTEX_WAIT_PRIVATE, once_control, 1, nullptr);
 	}
 
-	while (BAN::atomic_load(*once_control) != 2)
-		sched_yield();
 	return 0;
 }
 
