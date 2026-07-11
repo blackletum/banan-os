@@ -40,6 +40,11 @@ namespace Kernel
 		TRY(allocate_buffers());
 		TRY(rebase());
 
+		if (const uint32_t command_slots = m_controller->command_slot_count(); command_slots < 32)
+			m_free_slots = (1u << command_slots) - 1;
+		else
+			m_free_slots = -1;
+
 		// enable interrupts
 		m_port->ie = 0xFFFFFFFF;
 
@@ -51,13 +56,13 @@ namespace Kernel
 
 	BAN::ErrorOr<void> AHCIDevice::allocate_buffers()
 	{
-		uint32_t command_slot_count = m_controller->command_slot_count();
-		size_t needed_bytes = (sizeof(HBACommandHeader) + sizeof(HBACommandTable)) * command_slot_count + sizeof(ReceivedFIS);
+		const uint32_t command_slot_count = m_controller->command_slot_count();
+		const size_t needed_bytes = (sizeof(HBACommandHeader) + sizeof(HBACommandTable)) * command_slot_count + sizeof(ReceivedFIS);
 
 		m_dma_region = TRY(DMARegion::create(needed_bytes));
 		memset((void*)m_dma_region->vaddr(), 0x00, m_dma_region->size());
 
-		m_data_dma_region = TRY(DMARegion::create(PAGE_SIZE));
+		m_data_dma_region = TRY(DMARegion::create(PAGE_SIZE, PageTable::Normal));
 		memset((void*)m_data_dma_region->vaddr(), 0x00, m_data_dma_region->size());
 
 		return {};
@@ -67,25 +72,25 @@ namespace Kernel
 	{
 		ASSERT(m_dma_region);
 
-		uint32_t command_slot_count = m_controller->command_slot_count();
+		const uint32_t command_slot_count = m_controller->command_slot_count();
 
 		stop_cmd(m_port);
 
-		uint64_t fis_paddr = m_dma_region->paddr();
-		m_port->fb = fis_paddr & 0xFFFFFFFF;
+		const paddr_t fis_paddr = m_dma_region->paddr();
+		m_port->fb  = fis_paddr & 0xFFFFFFFF;
 		m_port->fbu = fis_paddr >> 32;
 
-		uint64_t command_list_paddr = fis_paddr + sizeof(ReceivedFIS);
-		m_port->clb = command_list_paddr & 0xFFFFFFFF;
+		const paddr_t command_list_paddr = fis_paddr + sizeof(ReceivedFIS);
+		m_port->clb  = command_list_paddr & 0xFFFFFFFF;
 		m_port->clbu = command_list_paddr >> 32;
 
-		auto* command_headers = (HBACommandHeader*)m_dma_region->paddr_to_vaddr(command_list_paddr);
-		paddr_t command_table_paddr = command_list_paddr + command_slot_count * sizeof(HBACommandHeader);
+		auto* command_headers = reinterpret_cast<volatile HBACommandHeader*>(m_dma_region->paddr_to_vaddr(command_list_paddr));
+		const paddr_t command_table_paddr = command_list_paddr + command_slot_count * sizeof(HBACommandHeader);
 		for (uint32_t i = 0; i < command_slot_count; i++)
 		{
-			uint64_t command_table_entry_paddr = command_table_paddr + i * sizeof(HBACommandTable);
+			const paddr_t command_table_entry_paddr = command_table_paddr + i * sizeof(HBACommandTable);
 			command_headers[i].prdtl = s_hba_prdt_count;
-			command_headers[i].ctba = command_table_entry_paddr & 0xFFFFFFFF;
+			command_headers[i].ctba  = command_table_entry_paddr & 0xFFFFFFFF;
 			command_headers[i].ctbau = command_table_entry_paddr >> 32;
 		}
 
@@ -98,35 +103,37 @@ namespace Kernel
 	{
 		ASSERT(m_data_dma_region);
 
-		m_port->is = ~(uint32_t)0;
+		const auto slot = find_free_command_slot();
 
-		auto slot = find_free_command_slot();
-		ASSERT(slot.has_value());
-
-		volatile auto& command_header = reinterpret_cast<volatile HBACommandHeader*>(m_dma_region->paddr_to_vaddr(m_port->clb))[slot.value()];
-		command_header.cfl = sizeof(FISRegisterH2D) / sizeof(uint32_t);
-		command_header.w = 0;
+		const paddr_t command_header_paddr = (static_cast<paddr_t>(m_port->clbu) << 32) | m_port->clb;
+		volatile auto& command_header = reinterpret_cast<volatile HBACommandHeader*>(m_dma_region->paddr_to_vaddr(command_header_paddr))[slot];
+		command_header.cfl   = sizeof(FISRegisterH2D) / sizeof(uint32_t);
+		command_header.w     = 0;
 		command_header.prdtl = 1;
 
-		volatile auto& command_table = *reinterpret_cast<volatile HBACommandTable*>(m_dma_region->paddr_to_vaddr(command_header.ctba));
-		memset(const_cast<HBACommandTable*>(&command_table), 0x00, sizeof(HBACommandTable));
-		command_table.prdt_entry[0].dba = m_data_dma_region->paddr();
-		command_table.prdt_entry[0].dbc = 511;
-		command_table.prdt_entry[0].i = 1;
+		const paddr_t command_table_paddr = (static_cast<paddr_t>(command_header.ctbau) << 32) | command_header.ctba;
+		volatile auto& command_table = *reinterpret_cast<volatile HBACommandTable*>(m_dma_region->paddr_to_vaddr(command_table_paddr));
+		command_table.prdt_entry[0].dba  = m_data_dma_region->paddr() & 0xFFFFFFFF;
+		command_table.prdt_entry[0].dbau = m_data_dma_region->paddr() >> 32;
+		command_table.prdt_entry[0].dbc  = 511;
+		command_table.prdt_entry[0].i    = 1;
 
 		volatile auto& command = *reinterpret_cast<volatile FISRegisterH2D*>(command_table.cfis);
 		command.fis_type = FIS_TYPE_REGISTER_H2D;
-		command.c = 1;
-		command.command = ATA_COMMAND_IDENTIFY;
+		command.c        = 1;
+		command.command  = ATA_COMMAND_IDENTIFY;
 
-		const uint64_t timeout_ms = SystemTimer::get().ms_since_boot() + s_ata_timeout_ms;
-		while (m_port->tfd & (ATA_STATUS_BSY | ATA_STATUS_DRQ))
-			if (SystemTimer::get().ms_since_boot() >= timeout_ms)
-				return BAN::Error::from_errno(ETIMEDOUT);
+		SpinLockGuard _(m_command_lock);
 
-		m_port->ci = 1 << slot.value();
+		m_port->ci = 1u << slot;
 
-		TRY(block_until_command_completed(slot.value()));
+		while (m_port->ci & (1u << slot))
+		{
+			BlockableSpinLock block(m_command_lock);
+			m_command_blocker.block_indefinite(&block);
+		}
+
+		m_free_slots |= 1u << slot;
 
 		return {};
 	}
@@ -150,49 +157,33 @@ namespace Kernel
 
 	void AHCIDevice::handle_irq()
 	{
-		const uint32_t is = m_port->is;
-		m_port->is = is;
-
-		const uint32_t serr = m_port->serr;
-		m_port->serr = serr;
-		if (auto err = serr & 0xFFFF)
-			print_error(err);
-	}
-
-	BAN::ErrorOr<void> AHCIDevice::block_until_command_completed(uint32_t command_slot)
-	{
-		static constexpr uint64_t poll_timeout_ms = 10;
-
-		const auto start_time_ms = SystemTimer::get().ms_since_boot();
-
-		while (SystemTimer::get().ms_since_boot() < start_time_ms + poll_timeout_ms)
-			if (!(m_port->ci & (1 << command_slot)))
-				return {};
-
-		// FIXME: This should actually block once ThreadBlocker support blocking with timeout.
-		//        This doesn't allow scheduler to go properly idle.
-		while (SystemTimer::get().ms_since_boot() < start_time_ms + s_ata_timeout_ms)
+		while (const uint32_t is = m_port->is)
 		{
-			Processor::yield();
-			if (!(m_port->ci & (1 << command_slot)))
-				return {};
+			m_port->is = is;
+
+			SpinLockGuard _(m_command_lock);
+			m_command_blocker.unblock();
 		}
 
-		return BAN::Error::from_errno(ETIMEDOUT);
+		if (const uint32_t serr = m_port->serr & 0xFFFF)
+		{
+			m_port->serr = serr;
+			print_error(serr);
+		}
 	}
 
 	BAN::ErrorOr<void> AHCIDevice::read_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ByteSpan buffer)
 	{
+		ASSERT(buffer.size() >= sector_count * sector_size());
+
 		LockGuard _(m_mutex);
 
-		ASSERT(buffer.size() >= sector_count * sector_size());
-		const size_t sectors_per_page = PAGE_SIZE / sector_size();
-		for (uint64_t sector_off = 0; sector_off < sector_count; sector_off += sectors_per_page)
+		const size_t max_sectors = m_data_dma_region->size() / sector_size();
+		for (uint64_t sector_off = 0; sector_off < sector_count; sector_off += max_sectors)
 		{
-			uint64_t to_read = BAN::Math::min<uint64_t>(sector_count - sector_off, sectors_per_page);
-
-			TRY(send_command_and_block(lba + sector_off, to_read, Command::Read));
-			memcpy(buffer.data() + sector_off * sector_size(), (void*)m_data_dma_region->vaddr(), to_read * sector_size());
+			const uint64_t to_read = BAN::Math::min<uint64_t>(sector_count - sector_off, max_sectors);
+			TRY(send_command_and_block(lba + sector_off, to_read, m_data_dma_region->paddr(), Command::Read));
+			memcpy(buffer.data() + sector_off * sector_size(), reinterpret_cast<void*>(m_data_dma_region->vaddr()), to_read * sector_size());
 		}
 
 		return {};
@@ -200,36 +191,31 @@ namespace Kernel
 
 	BAN::ErrorOr<void> AHCIDevice::write_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan buffer)
 	{
+		ASSERT(buffer.size() >= sector_count * sector_size());
+
 		LockGuard _(m_mutex);
 
-		ASSERT(buffer.size() >= sector_count * sector_size());
-		const size_t sectors_per_page = PAGE_SIZE / sector_size();
-		for (uint64_t sector_off = 0; sector_off < sector_count; sector_off += sectors_per_page)
+		const size_t max_sectors = m_data_dma_region->size() / sector_size();
+		for (uint64_t sector_off = 0; sector_off < sector_count; sector_off += max_sectors)
 		{
-			uint64_t to_read = BAN::Math::min<uint64_t>(sector_count - sector_off, sectors_per_page);
-
-			memcpy((void*)m_data_dma_region->vaddr(), buffer.data() + sector_off * sector_size(), to_read * sector_size());
-			TRY(send_command_and_block(lba + sector_off, to_read, Command::Write));
+			const uint64_t to_write = BAN::Math::min<uint64_t>(sector_count - sector_off, max_sectors);
+			memcpy(reinterpret_cast<void*>(m_data_dma_region->vaddr()), buffer.data() + sector_off * sector_size(), to_write * sector_size());
+			TRY(send_command_and_block(lba + sector_off, to_write, m_data_dma_region->paddr(), Command::Write));
 		}
 
 		return {};
 	}
 
-	BAN::ErrorOr<void> AHCIDevice::send_command_and_block(uint64_t lba, uint64_t sector_count, Command command)
+	BAN::ErrorOr<void> AHCIDevice::send_command_and_block(uint64_t lba, uint64_t sector_count, paddr_t paddr, Command command)
 	{
 		ASSERT(m_dma_region);
-		ASSERT(m_data_dma_region);
 		ASSERT(0 < sector_count && sector_count <= 0xFFFF + 1);
 
-		ASSERT(sector_count * sector_size() <= m_data_dma_region->size());
+		const auto slot = find_free_command_slot();
 
-		m_port->is = ~(uint32_t)0;
-
-		auto slot = find_free_command_slot();
-		ASSERT(slot.has_value());
-
-		volatile auto& command_header = reinterpret_cast<volatile HBACommandHeader*>(m_dma_region->paddr_to_vaddr(m_port->clb))[slot.value()];
-		command_header.cfl = sizeof(FISRegisterH2D) / sizeof(uint32_t);
+		const paddr_t command_header_paddr = (static_cast<paddr_t>(m_port->clbu) << 32) | m_port->clb;
+		volatile auto& command_header = reinterpret_cast<volatile HBACommandHeader*>(m_dma_region->paddr_to_vaddr(command_header_paddr))[slot];
+		command_header.cfl   = sizeof(FISRegisterH2D) / sizeof(uint32_t);
 		command_header.prdtl = 1;
 		switch (command)
 		{
@@ -243,18 +229,17 @@ namespace Kernel
 				ASSERT_NOT_REACHED();
 		}
 
-		volatile auto& command_table = *reinterpret_cast<HBACommandTable*>(m_dma_region->paddr_to_vaddr(command_header.ctba));
-		memset(const_cast<HBACommandTable*>(&command_table), 0x00, sizeof(HBACommandTable));
-		uint64_t data_dma_paddr64 = m_data_dma_region->paddr();
-		command_table.prdt_entry[0].dba = data_dma_paddr64 & 0xFFFFFFFF;
-		command_table.prdt_entry[0].dbau = data_dma_paddr64 >> 32;
-		command_table.prdt_entry[0].dbc = sector_count * sector_size() - 1;
-		command_table.prdt_entry[0].i = 1;
+		const paddr_t command_table_paddr = (static_cast<paddr_t>(command_header.ctbau) << 32) | command_header.ctba;
+		volatile auto& command_table = *reinterpret_cast<HBACommandTable*>(m_dma_region->paddr_to_vaddr(command_table_paddr));
+
+		command_table.prdt_entry[0].dba  = paddr & 0xFFFFFFFF;
+		command_table.prdt_entry[0].dbau = paddr >> 32;
+		command_table.prdt_entry[0].dbc  = sector_count * sector_size() - 1;
+		command_table.prdt_entry[0].i    = 1;
 
 		volatile auto& fis_command = *reinterpret_cast<volatile FISRegisterH2D*>(command_table.cfis);
-		memset(const_cast<FISRegisterH2D*>(&fis_command), 0x00, sizeof(FISRegisterH2D));
 		fis_command.fis_type = FIS_TYPE_REGISTER_H2D;
-		fis_command.c = 1;
+		fis_command.c        = 1;
 
 		const bool needs_extended = lba >= (1 << 24) || sector_count > 0xFF;
 		ASSERT (!needs_extended || (m_command_set & ATA_COMMANDSET_LBA48_SUPPORTED));
@@ -283,23 +268,37 @@ namespace Kernel
 		fis_command.count_lo = (sector_count >> 0) & 0xFF;
 		fis_command.count_hi = (sector_count >> 8) & 0xFF;
 
-		while (m_port->tfd & (ATA_STATUS_BSY | ATA_STATUS_DRQ))
-			continue;
+		SpinLockGuard _(m_command_lock);
 
-		m_port->ci = 1 << slot.value();
+		m_port->ci = 1u << slot;
 
-		TRY(block_until_command_completed(slot.value()));
+		while (m_port->ci & (1u << slot))
+		{
+			BlockableSpinLock block(m_command_lock);
+			m_command_blocker.block_indefinite(&block);
+		}
+
+		m_free_slots |= 1u << slot;
 
 		return {};
 	}
 
-	BAN::Optional<uint32_t> AHCIDevice::find_free_command_slot()
+	uint32_t AHCIDevice::find_free_command_slot()
 	{
-		uint32_t slots = m_port->sact | m_port->ci;
-		for (uint32_t i = 0; i < m_controller->command_slot_count(); i++)
-			if (!(slots & (1 << i)))
-				return i;
-		return {};
+		SpinLockGuard _(m_command_lock);
+
+		for (;;)
+		{
+			if (const uint32_t usable_slots = ~(m_port->sact | m_port->ci) & m_free_slots)
+			{
+				const uint32_t slot = __builtin_ctz(usable_slots);
+				m_free_slots &= ~(1u << slot);
+				return slot;
+			}
+
+			BlockableSpinLock block(m_command_lock);
+			m_command_blocker.block_indefinite(&block);
+		}
 	}
 
 }

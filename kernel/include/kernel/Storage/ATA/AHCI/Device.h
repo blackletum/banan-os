@@ -26,16 +26,16 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ByteSpan) override;
 		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan) override;
-		BAN::ErrorOr<void> send_command_and_block(uint64_t lba, uint64_t sector_count, Command command);
+		BAN::ErrorOr<void> send_command_and_block(uint64_t lba, uint64_t sector_count, paddr_t paddr, Command command);
 
-		BAN::Optional<uint32_t> find_free_command_slot();
+		uint32_t find_free_command_slot();
 
 		void handle_irq();
 
-		BAN::ErrorOr<void> block_until_command_completed(uint32_t command_slot);
-
 	private:
 		Mutex m_mutex;
+
+		uint32_t m_free_slots { 0 };
 
 		BAN::RefPtr<AHCIController> m_controller;
 		volatile HBAPortMemorySpace* const m_port;
@@ -44,6 +44,9 @@ namespace Kernel
 		// Intermediate read/write buffer
 		// TODO: can we read straight to user buffer?
 		BAN::UniqPtr<DMARegion> m_data_dma_region;
+
+		SpinLock m_command_lock;
+		ThreadBlocker m_command_blocker;
 
 		friend class AHCIController;
 	};
