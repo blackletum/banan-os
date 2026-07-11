@@ -1,0 +1,148 @@
+Binary files ClassiCube-1.3.8/ClassiCube and ClassiCube-1.3.8-banan_os/ClassiCube differ
+diff -ruN ClassiCube-1.3.8/Makefile ClassiCube-1.3.8-banan_os/Makefile
+--- ClassiCube-1.3.8/Makefile	2026-02-16 11:59:50.000000000 +0200
++++ ClassiCube-1.3.8-banan_os/Makefile	2026-07-11 00:04:53.761350011 +0300
+@@ -163,6 +163,12 @@
+ 	BUILD_DIR = build/serenity
+ endif
+ 
++ifeq ($(PLAT),banan-os)
++	LDFLAGS = -g
++	LIBS    = -lOSMesa -lSDL3
++	BUILD_DIR = build/banan-os
++endif
++
+ ifeq ($(PLAT),irix)
+ 	CC      = gcc
+ 	LIBS    = -lGL -lX11 -lXi -lpthread -ldl
+@@ -247,6 +253,8 @@
+ 	$(MAKE) $(TARGET) PLAT=beos
+ serenityos:
+ 	$(MAKE) $(TARGET) PLAT=serenityos
++banan-os:
++	$(MAKE) $(TARGET) PLAT=banan-os
+ irix:
+ 	$(MAKE) $(TARGET) PLAT=irix
+ riscos:
+diff -ruN ClassiCube-1.3.8/src/Core.h ClassiCube-1.3.8-banan_os/src/Core.h
+--- ClassiCube-1.3.8/src/Core.h	2026-02-16 11:59:50.000000000 +0200
++++ ClassiCube-1.3.8-banan_os/src/Core.h	2026-07-11 00:04:53.775996187 +0300
+@@ -254,6 +254,15 @@
+ 	#define DEFAULT_AUD_BACKEND CC_AUD_BACKEND_OPENAL
+ 	#define DEFAULT_GFX_BACKEND CC_GFX_BACKEND_GL1
+ 	#define DEFAULT_WIN_BACKEND CC_WIN_BACKEND_SDL2
++#elif defined __banan_os__
++	#define CC_BUILD_BANAN
++	#define CC_BUILD_POSIX
++	#define DEFAULT_NET_BACKEND CC_NET_BACKEND_BUILTIN
++	#define DEFAULT_SSL_BACKEND CC_SSL_BACKEND_BEARSSL
++	#define DEFAULT_CRT_BACKEND CC_CRT_BACKEND_OPENSSL
++	#define DEFAULT_AUD_BACKEND CC_AUD_BACKEND_OPENAL
++	#define DEFAULT_GFX_BACKEND CC_GFX_BACKEND_GL2
++	#define DEFAULT_WIN_BACKEND CC_WIN_BACKEND_SDL3
+ #elif defined MSDOS
+ 	#undef  CC_BUILD_FREETYPE
+ 	#define CC_BUILD_MSDOS
+diff -ruN ClassiCube-1.3.8/src/Logger.c ClassiCube-1.3.8-banan_os/src/Logger.c
+--- ClassiCube-1.3.8/src/Logger.c	2026-02-16 11:59:50.000000000 +0200
++++ ClassiCube-1.3.8-banan_os/src/Logger.c	2026-07-11 00:04:53.778429266 +0300
+@@ -27,7 +27,7 @@
+ 
+ 	static HANDLE curProcess = CUR_PROCESS_HANDLE;
+ 	static cc_uintptr spRegister;
+-#elif defined CC_BUILD_OPENBSD || defined CC_BUILD_HAIKU || defined CC_BUILD_SERENITY
++#elif defined CC_BUILD_OPENBSD || defined CC_BUILD_HAIKU || defined CC_BUILD_SERENITY || defined CC_BUILD_BANAN
+ 	#include <signal.h>
+ 	/* These operating systems don't provide sys/ucontext.h */
+ 	/*  But register constants be found from includes in <signal.h> */
+@@ -445,6 +445,11 @@
+ 	String_AppendConst(trace, "-- backtrace unimplemented --");
+ 	/* TODO: Backtrace using LibSymbolication */
+ }
++#elif defined CC_BUILD_BANAN
++void Logger_Backtrace(cc_string* trace, void* ctx) {
++	String_AppendConst(trace, "-- backtrace unimplemented --");
++	/* TODO: Backtrace using LibSymbolication */
++}
+ #elif defined CC_BUILD_IRIX
+ void Logger_Backtrace(cc_string* trace, void* ctx) {
+ 	String_AppendConst(trace, "-- backtrace unimplemented --");
+@@ -965,6 +970,19 @@
+ 	Dump_X64()
+ #else
+ 	#error "Unknown CPU architecture"
++#endif
++}
++#elif defined CC_BUILD_BANAN
++static void PrintRegisters(cc_string* str, void* ctx) {
++	mcontext_t* r = &((ucontext_t*)ctx)->uc_mcontext;
++#if defined __i386__
++	#define REG_GET(ign, reg) &r->gregs[REG_E##reg]
++	Dump_X86()
++#elif defined __x86_64__
++	#define REG_GET(ign, reg) &r->gregs[REG_R##reg]
++	Dump_X64()
++#else
++	#error "Unknown CPU architecture"
+ #endif
+ }
+ #elif defined CC_BUILD_IRIX
+diff -ruN ClassiCube-1.3.8/src/Platform_Posix.c ClassiCube-1.3.8-banan_os/src/Platform_Posix.c
+--- ClassiCube-1.3.8/src/Platform_Posix.c	2026-02-16 11:59:50.000000000 +0200
++++ ClassiCube-1.3.8-banan_os/src/Platform_Posix.c	2026-07-11 00:19:51.961830818 +0300
+@@ -36,7 +36,11 @@
+ const cc_result ReturnCode_PathNotFound     = 99999;
+ const cc_result ReturnCode_DirectoryExists  = EEXIST;
+ const cc_result ReturnCode_SocketInProgess  = EINPROGRESS;
++#ifdef CC_BUILD_BANAN
++const cc_result ReturnCode_SocketWouldBlock = EAGAIN;
++#else
+ const cc_result ReturnCode_SocketWouldBlock = EWOULDBLOCK;
++#endif
+ const cc_result ReturnCode_SocketDropped    = EPIPE;
+ #define SUPPORTS_GETADDRINFO 1
+ 
+@@ -633,6 +637,10 @@
+ 	static const cc_string dirs[] = {
+ 		String_FromConst("/res/fonts")
+ 	};
++#elif defined CC_BUILD_BANAN
++	static const cc_string dirs[] = {
++		String_FromConst("/usr/share/fonts")
++	};
+ #elif defined CC_BUILD_OS2
+ 	static const cc_string dirs[] = {
+ 		String_FromConst("/@unixroot/usr/share/fonts"),
+@@ -1048,7 +1056,7 @@
+ 	*len = String_CalcLen(path, NATIVE_STR_LEN);
+ 	return 0;
+ }
+-#elif defined CC_BUILD_LINUX || defined CC_BUILD_SERENITY
++#elif defined CC_BUILD_LINUX || defined CC_BUILD_SERENITY || defined CC_BUILD_BANAN
+ static cc_result Process_RawGetExePath(char* path, int* len) {
+ 	*len = readlink("/proc/self/exe", path, NATIVE_STR_LEN);
+ 	return *len == -1 ? errno : 0;
+@@ -1649,6 +1657,23 @@
+ 
+ cc_result Platform_SetDefaultCurrentDirectory(int argc, char **argv) {
+ 	char path[NATIVE_STR_LEN];
++
++#ifdef CC_BUILD_BANAN
++	const char* home_env = getenv("HOME");
++	if (home_env != nullptr)
++	{
++		strcpy(path, home_env);
++
++		strcat(path, "/Games");
++		mkdir(path, 0755);
++
++		strcat(path, "/ClassiCube");
++		mkdir(path, 0755);
++
++		return chdir(path) == -1 ? errno : 0;
++	}
++#endif
++
+ 	int i, len = 0;
+ 	cc_result res;
+ 	if (!IsProblematicWorkingDirectory()) return 0;
