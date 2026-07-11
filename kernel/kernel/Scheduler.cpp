@@ -689,7 +689,7 @@ namespace Kernel
 		uint32_t lock_depth = 0;
 		if (mutex != nullptr)
 		{
-			ASSERT(mutex->is_locked() && mutex->locker() == m_current->thread->tid());
+			ASSERT(mutex->is_locked_by_current_thread());
 			lock_depth = mutex->lock_depth();
 		}
 

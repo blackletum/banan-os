@@ -3,7 +3,7 @@
 #include <kernel/Audio/HDAudio/Controller.h>
 #include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
-#include <kernel/Lock/SpinLockAsMutex.h>
+#include <kernel/Lock/BlockableSpinLock.h>
 
 #include <sys/ioctl.h>
 #include <sys/sysmacros.h>
@@ -65,8 +65,8 @@ namespace Kernel
 
 		while (m_sample_data->full())
 		{
-			SpinLockGuardAsMutex smutex(lock_guard);
-			TRY(Thread::current().block_or_eintr_indefinite(m_sample_data_blocker, &smutex));
+			BlockableSpinLock block(m_spinlock);
+			TRY(Thread::current().block_or_eintr_indefinite(m_sample_data_blocker, &block));
 		}
 
 		const size_t to_copy = BAN::Math::min(buffer.size(), m_sample_data->free());

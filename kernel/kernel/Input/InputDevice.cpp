@@ -3,7 +3,7 @@
 #include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Input/InputDevice.h>
-#include <kernel/Lock/SpinLockAsMutex.h>
+#include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Terminal/TTY.h>
 
 #include <LibInput/Joystick.h>
@@ -245,8 +245,8 @@ namespace Kernel
 		while (m_event_count == 0)
 		{
 			// FIXME: should m_mutex be unlocked?
-			SpinLockGuardAsMutex smutex(guard);
-			TRY(Thread::current().block_or_eintr_indefinite(m_event_thread_blocker, &smutex));
+			BlockableSpinLock block(m_event_lock);
+			TRY(Thread::current().block_or_eintr_indefinite(m_event_thread_blocker, &block));
 		}
 
 		memcpy(buffer.data(), &m_event_buffer[m_event_tail * m_event_size], m_event_size);
@@ -289,8 +289,8 @@ namespace Kernel
 
 				if (s_tty_keyboard_events.empty())
 				{
-					SpinLockGuardAsMutex smutex(guard);
-					s_tty_keyboard_event_blocker.block_indefinite(&smutex);
+					BlockableSpinLock block(s_tty_keyboard_event_lock);
+					s_tty_keyboard_event_blocker.block_indefinite(&block);
 					continue;
 				}
 
@@ -350,8 +350,8 @@ namespace Kernel
 					return bytes;
 			}
 
-			SpinLockGuardAsMutex smutex(keyboard_guard);
-			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &smutex));
+			BlockableSpinLock block(s_keyboard_lock);
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &block));
 		}
 	}
 
@@ -407,8 +407,8 @@ namespace Kernel
 					return bytes;
 			}
 
-			SpinLockGuardAsMutex smutex(mouse_guard);
-			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &smutex));
+			BlockableSpinLock block(s_mouse_lock);
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &block));
 		}
 	}
 

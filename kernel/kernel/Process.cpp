@@ -10,8 +10,8 @@
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
+#include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Lock/LockGuard.h>
-#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Memory/FileBackedRegion.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MemoryBackedRegion.h>
@@ -1197,8 +1197,8 @@ namespace Kernel
 			if (options & WNOHANG)
 				return 0;
 
-			SpinLockGuardAsMutex smutex(sguard);
-			TRY(Thread::current().block_or_eintr_indefinite(m_child_wait_blocker, &smutex));
+			BlockableSpinLock block(m_child_wait_lock);
+			TRY(Thread::current().block_or_eintr_indefinite(m_child_wait_blocker, &block));
 		}
 
 		if (user_stat_loc != nullptr)
@@ -3171,8 +3171,8 @@ namespace Kernel
 			if (!m_stopped)
 				break;
 
-			SpinLockGuardAsMutex smutex(guard);
-			m_stop_blocker.block_indefinite(&smutex);
+			BlockableSpinLock block(m_signal_lock);
+			m_stop_blocker.block_indefinite(&block);
 		}
 	}
 

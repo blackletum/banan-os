@@ -1,4 +1,3 @@
-#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Networking/ARPTable.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Timer/Timer.h>

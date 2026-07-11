@@ -1,6 +1,6 @@
+#include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/PageTable.h>
-#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Networking/ICMP.h>
 #include <kernel/Networking/IPv4Layer.h>
 #include <kernel/Networking/NetworkManager.h>

@@ -6,7 +6,6 @@
 #include <kernel/BootInfo.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
-#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Memory/PageTable.h>
 #include <kernel/Process.h>
 #include <kernel/Timer/Timer.h>

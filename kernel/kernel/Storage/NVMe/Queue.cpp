@@ -1,4 +1,4 @@
-#include <kernel/Lock/SpinLockAsMutex.h>
+#include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Storage/NVMe/Queue.h>
 #include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
@@ -91,8 +91,8 @@ namespace Kernel
 
 		while (~m_used_mask == 0)
 		{
-			SpinLockGuardAsMutex smutex(guard);
-			m_thread_blocker.block_with_timeout_ms(s_nvme_command_timeout_ms, &smutex);
+			BlockableSpinLock block(m_lock);
+			m_thread_blocker.block_with_timeout_ms(s_nvme_command_timeout_ms, &block);
 		}
 
 		uint16_t cid = 0;

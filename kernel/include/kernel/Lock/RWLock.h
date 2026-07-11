@@ -1,7 +1,7 @@
 #pragma once
 
+#include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Lock/SpinLock.h>
-#include <kernel/Lock/SpinLockAsMutex.h>
 
 namespace Kernel
 {
@@ -18,8 +18,8 @@ namespace Kernel
 			SpinLockGuard _(m_lock);
 			while (m_writers_waiting > 0 || m_writer != -1)
 			{
-				SpinLockGuardAsMutex smutex(_);
-				m_thread_blocker.block_indefinite(&smutex);
+				BlockableSpinLock block(m_lock);
+				m_thread_blocker.block_indefinite(&block);
 			}
 			m_readers_active++;
 		}
@@ -44,8 +44,8 @@ namespace Kernel
 			m_writers_waiting++;
 			while (m_readers_active > 0 || m_writer != -1)
 			{
-				SpinLockGuardAsMutex smutex(_);
-				m_thread_blocker.block_indefinite(&smutex);
+				BlockableSpinLock block(m_lock);
+				m_thread_blocker.block_indefinite(&block);
 			}
 			m_writers_waiting--;
 

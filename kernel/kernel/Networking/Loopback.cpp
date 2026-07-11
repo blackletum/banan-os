@@ -1,4 +1,4 @@
-#include <kernel/Lock/SpinLockAsMutex.h>
+#include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Networking/Loopback.h>
 #include <kernel/Networking/NetworkManager.h>
 
@@ -72,8 +72,8 @@ namespace Kernel
 						descriptor.state = 1;
 						return descriptor;
 					}
-					SpinLockGuardAsMutex smutex(guard);
-					m_thread_blocker.block_indefinite(&smutex);
+					BlockableSpinLock block(m_buffer_lock);
+					m_thread_blocker.block_indefinite(&block);
 				}
 			}();
 
@@ -118,8 +118,8 @@ namespace Kernel
 				m_thread_blocker.unblock();
 			}
 
-			SpinLockGuardAsMutex smutex(guard);
-			m_thread_blocker.block_indefinite(&smutex);
+			BlockableSpinLock block(m_buffer_lock);
+			m_thread_blocker.block_indefinite(&block);
 		}
 
 		m_thread_is_dead = true;

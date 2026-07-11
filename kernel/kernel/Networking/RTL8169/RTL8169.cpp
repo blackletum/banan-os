@@ -1,4 +1,4 @@
-#include <kernel/Lock/SpinLockAsMutex.h>
+#include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/RTL8169/Definitions.h>
 #include <kernel/Networking/RTL8169/RTL8169.h>
@@ -218,8 +218,8 @@ namespace Kernel
 			SpinLockGuard guard(m_tx_lock);
 			while (descriptor.command & RTL8169_DESC_CMD_OWN)
 			{
-				SpinLockGuardAsMutex smutex(guard);
-				m_tx_blocker.block_indefinite(&smutex);
+				BlockableSpinLock block(m_tx_lock);
+				m_tx_blocker.block_indefinite(&block);
 			}
 		}
 
@@ -308,8 +308,8 @@ namespace Kernel
 				m_rx_head = (m_rx_head + 1) % m_rx_descriptor_count;
 			}
 
-			SpinLockGuardAsMutex smutex(rx_lock_guard);
-			m_rx_blocker.block_indefinite(&smutex);
+			BlockableSpinLock block(m_rx_lock);
+			m_rx_blocker.block_indefinite(&block);
 		}
 
 		m_rx_thread_is_dead = true;

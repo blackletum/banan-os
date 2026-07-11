@@ -1,5 +1,5 @@
 #include <kernel/Lock/LockGuard.h>
-#include <kernel/Lock/SpinLockAsMutex.h>
+#include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Networking/UDPSocket.h>
 #include <kernel/Thread.h>
@@ -181,8 +181,8 @@ namespace Kernel
 
 		while (m_packets.empty())
 		{
-			SpinLockGuardAsMutex smutex(guard);
-			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker, &smutex));
+			BlockableSpinLock block(m_packet_lock);
+			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker, &block));
 		}
 
 		auto packet_info = m_packets.front();

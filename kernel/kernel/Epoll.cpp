@@ -1,6 +1,6 @@
 #include <kernel/Epoll.h>
+#include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Lock/LockGuard.h>
-#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel
@@ -222,8 +222,8 @@ namespace Kernel
 			if (!m_ready_events.empty())
 				continue;
 
-			SpinLockGuardAsMutex smutex(guard);
-			TRY(Thread::current().block_or_eintr_or_waketime_ns(m_thread_blocker, waketime_ns, false, &smutex));
+			BlockableSpinLock block(m_ready_lock);
+			TRY(Thread::current().block_or_eintr_or_waketime_ns(m_thread_blocker, waketime_ns, false, &block));
 		}
 
 		return event_count;

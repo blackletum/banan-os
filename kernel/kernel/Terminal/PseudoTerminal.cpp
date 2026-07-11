@@ -1,6 +1,6 @@
 #include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
-#include <kernel/Lock/SpinLockAsMutex.h>
+#include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Terminal/PseudoTerminal.h>
 
 #include <BAN/ScopeGuard.h>
@@ -112,8 +112,8 @@ namespace Kernel
 
 		while (m_buffer_size == 0)
 		{
-			SpinLockGuardAsMutex smutex(guard);
-			TRY(Thread::current().block_or_eintr_indefinite(m_buffer_blocker, &smutex));
+			BlockableSpinLock block(m_buffer_lock);
+			TRY(Thread::current().block_or_eintr_indefinite(m_buffer_blocker, &block));
 		}
 
 		const size_t to_copy = BAN::Math::min(buffer.size(), m_buffer_size);

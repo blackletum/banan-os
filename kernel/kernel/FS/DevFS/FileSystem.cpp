@@ -7,8 +7,8 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/TmpFS/Inode.h>
 #include <kernel/Input/InputDevice.h>
+#include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Lock/LockGuard.h>
-#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Storage/StorageDevice.h>
@@ -77,8 +77,8 @@ namespace Kernel
 						bool expected = true;
 						if (!devfs->m_should_drop_disk_cache.compare_exchange(expected, false))
 						{
-							SpinLockGuardAsMutex smutex(guard);
-							devfs->m_disk_cache_thread_blocker.block_indefinite(&smutex);
+							BlockableSpinLock block(devfs->m_disk_cache_lock);
+							devfs->m_disk_cache_thread_blocker.block_indefinite(&block);
 							continue;
 						}
 					}

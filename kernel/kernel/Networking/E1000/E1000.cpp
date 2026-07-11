@@ -1,7 +1,7 @@
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
-#include <kernel/Lock/SpinLockAsMutex.h>
+#include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Memory/PageTable.h>
 #include <kernel/MMIO.h>
 #include <kernel/Networking/E1000/E1000.h>
@@ -380,8 +380,8 @@ namespace Kernel
 			if (rx_current != rx_tail)
 				write32(REG_RDT0, rx_tail);
 
-			SpinLockGuardAsMutex smutex(guard);
-			m_rx_blocker.block_indefinite(&smutex);
+			BlockableSpinLock block(m_rx_lock);
+			m_rx_blocker.block_indefinite(&block);
 		}
 
 		m_thread_is_dead = true;

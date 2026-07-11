@@ -7,7 +7,6 @@
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/Input/InputDevice.h>
 #include <kernel/Lock/LockGuard.h>
-#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Process.h>
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Timer/Timer.h>

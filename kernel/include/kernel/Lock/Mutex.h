@@ -13,12 +13,10 @@ namespace Kernel
 	{
 	public:
 		virtual void lock() = 0;
-		virtual bool try_lock() = 0;
 		virtual void unlock() = 0;
 
-		virtual pid_t locker() const = 0;
-		virtual bool is_locked() const = 0;
 		virtual uint32_t lock_depth() const = 0;
+		virtual bool is_locked_by_current_thread() const = 0;
 	};
 
 	class Mutex final : public BaseMutex
@@ -51,7 +49,7 @@ namespace Kernel
 			m_lock_depth++;
 		}
 
-		bool try_lock() override
+		bool try_lock()
 		{
 			const auto tid = Thread::current_tid();
 			if (tid == m_locker)
@@ -82,10 +80,10 @@ namespace Kernel
 			}
 		}
 
-		pid_t locker() const override { return m_locker; }
-		bool is_locked() const override { return m_locker != -1; }
+		pid_t locker() const { return m_locker; }
+		bool is_locked() const { return m_locker != -1; }
 		uint32_t lock_depth() const override { return m_lock_depth; }
-		bool is_locked_by_current_thread() const { return m_locker == Thread::current_tid(); }
+		bool is_locked_by_current_thread() const override { return m_locker == Thread::current_tid(); }
 
 	private:
 		BAN::Atomic<pid_t>	m_locker		{ -1 };
@@ -126,7 +124,7 @@ namespace Kernel
 			m_lock_depth++;
 		}
 
-		bool try_lock() override
+		bool try_lock()
 		{
 			const auto tid = Thread::current_tid();
 
@@ -164,10 +162,10 @@ namespace Kernel
 			}
 		}
 
-		pid_t locker() const override { return m_locker; }
-		bool is_locked() const override { return m_locker != -1; }
+		pid_t locker() const { return m_locker; }
+		bool is_locked() const { return m_locker != -1; }
 		uint32_t lock_depth() const override { return m_lock_depth; }
-		bool is_locked_by_current_thread() const { return m_locker == Thread::current_tid(); }
+		bool is_locked_by_current_thread() const override { return m_locker == Thread::current_tid(); }
 
 	private:
 		BAN::Atomic<pid_t>		m_locker		{ -1 };

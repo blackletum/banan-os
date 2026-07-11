@@ -1,8 +1,8 @@
 #include <kernel/Audio/HDAudio/AudioFunctionGroup.h>
 #include <kernel/Audio/HDAudio/Controller.h>
 #include <kernel/Audio/HDAudio/Registers.h>
+#include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Lock/LockGuard.h>
-#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/MMIO.h>
 #include <kernel/Timer/Timer.h>
 
@@ -369,8 +369,8 @@ namespace Kernel
 			{
 				if (SystemTimer::get().ms_since_boot() > waketime_ms)
 					return BAN::Error::from_errno(ETIMEDOUT);
-				SpinLockGuardAsMutex smutex(sguard);
-				m_rb_blocker.block_with_timeout_ms(10, &smutex);
+				BlockableSpinLock block(m_rb_lock);
+				m_rb_blocker.block_with_timeout_ms(10, &block);
 			}
 
 			const size_t offset = 2 * m_rirb.index * sizeof(uint32_t);
