@@ -624,7 +624,7 @@ namespace Kernel
 				continue;
 			buffer.used = true;
 			return Ext2FS::BlockBufferWrapper {
-				buffer.buffer.span(),
+				buffer.buffer,
 				[](void* self, const uint8_t* buffer) { static_cast<BlockBufferManager*>(self)->destroy_callback(buffer); },
 				this
 			};
@@ -635,11 +635,23 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2FS::BlockBufferManager::initialize(size_t block_size)
 	{
-		for (auto& buffer : m_buffers)
+		m_buffer_data = TRY(VirtualRange::create_to_vaddr_range(
+			PageTable::kernel(),
+			{ KERNEL_OFFSET, BAN::numeric_limits<vaddr_t>::max() },
+			block_size * m_buffers.size(),
+			PageTable::ReadWrite | PageTable::Present,
+			false
+		));
+
+		auto buffer_data_span = BAN::ByteSpan { reinterpret_cast<uint8_t*>(m_buffer_data->vaddr()), m_buffer_data->size() };
+		for (size_t i = 0; i < m_buffers.size(); i++)
 		{
-			TRY(buffer.buffer.resize(block_size));
-			buffer.used = false;
+			m_buffers[i] = {
+				.buffer = buffer_data_span.slice(i * block_size, block_size),
+				.used = false,
+			};
 		}
+
 		return {};
 	}
 

@@ -28,7 +28,7 @@ namespace Kernel
 			BAN_NON_COPYABLE(BlockBufferWrapper);
 
 		public:
-			BlockBufferWrapper(BAN::Span<uint8_t> buffer, void (*callback)(void*, const uint8_t*), void* argument)
+			BlockBufferWrapper(BAN::ByteSpan buffer, void (*callback)(void*, const uint8_t*), void* argument)
 				: m_buffer(buffer)
 				, m_callback(callback)
 				, m_argument(argument)
@@ -60,13 +60,13 @@ namespace Kernel
 			const uint8_t* data() const { return m_buffer.data(); }
 
 			BAN::ByteSpan span() { return m_buffer; }
-			BAN::ConstByteSpan span() const { return m_buffer.as_const(); }
+			BAN::ConstByteSpan span() const { return m_buffer; }
 
 			uint8_t& operator[](size_t index) { return m_buffer[index]; }
 			uint8_t operator[](size_t index) const { return m_buffer[index]; }
 
 		private:
-			BAN::Span<uint8_t> m_buffer;
+			BAN::ByteSpan m_buffer;
 			void (*m_callback)(void*, const uint8_t*);
 			void* m_argument;
 		};
@@ -128,7 +128,7 @@ namespace Kernel
 		private:
 			struct BlockBuffer
 			{
-				BAN::Vector<uint8_t> buffer;
+				BAN::ByteSpan buffer;
 				bool used { false };
 			};
 
@@ -144,6 +144,7 @@ namespace Kernel
 
 			Mutex m_buffer_mutex;
 			ThreadBlocker m_buffer_blocker;
+			BAN::UniqPtr<VirtualRange> m_buffer_data;
 			BAN::Array<BlockBuffer, max_threads * max_buffers_per_thread> m_buffers;
 			BAN::Array<ThreadInfo, max_threads> m_thread_infos;
 		};
