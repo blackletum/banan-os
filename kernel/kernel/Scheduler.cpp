@@ -235,8 +235,12 @@ namespace Kernel
 					add_current_to_most_loaded(m_current->blocked ? &m_block_queue : &m_run_queue);
 					if (!m_current->blocked)
 						m_run_queue.add_thread_to_back(m_current);
-					else if (m_block_queue.add_thread_with_wake_time(m_current))
-						update_wake_up_deadline();
+					else
+					{
+						if (m_block_queue.add_thread_with_wake_time(m_current))
+							update_wake_up_deadline();
+						Processor::set_disable_smp_messages(false);
+					}
 					break;
 				case Thread::State::NotStarted:
 					ASSERT(!m_current->blocked);
@@ -383,13 +387,12 @@ namespace Kernel
 		{
 			if (!node->blocked)
 				return;
-			if (node != m_current)
-				m_block_queue.remove_node(node);
+			ASSERT(node != m_current);
+			m_block_queue.remove_node(node);
 			if (auto* blocker = node->blocker.load())
 				blocker->remove_thread_from_block_queue(node);
 			node->blocked = false;
-			if (node != m_current)
-				m_run_queue.add_thread_to_back(node);
+			m_run_queue.add_thread_to_back(node);
 			update_most_loaded_node_queue(node, &m_run_queue);
 		}
 		else
@@ -602,7 +605,6 @@ namespace Kernel
 			}
 
 			thread_info.node->processor_id = least_loaded_id;
-
 			Processor::send_smp_message(least_loaded_id, {
 				.type = Processor::SMPMessage::Type::NewThread,
 				.new_thread = thread_info.node
@@ -676,13 +678,13 @@ namespace Kernel
 		ASSERT(m_current->processor_id == Processor::current_id());
 		ASSERT(!m_current->blocked);
 
+		Processor::set_disable_smp_messages(true);
+
 		m_current->blocked = true;
 		m_current->wake_time_ns = wake_time_ns;
 
-		if (blocker)
+		if (blocker != nullptr)
 			blocker->add_thread_to_block_queue(m_current);
-
-		update_most_loaded_node_queue(m_current, &m_block_queue);
 
 		uint32_t lock_depth = 0;
 		if (mutex != nullptr)

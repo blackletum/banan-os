@@ -104,8 +104,15 @@ namespace Kernel
 		static void pause()
 		{
 			__builtin_ia32_pause();
-			if (is_smp_enabled())
+			if (is_smp_enabled() && !smp_messages_disabled())
 				handle_smp_messages();
+		}
+
+		static bool smp_messages_disabled() { return read_gs_sized<bool>(offsetof(Processor, m_smp_messages_disabled)); }
+		static void set_disable_smp_messages(bool disabled)
+		{
+			ASSERT(smp_messages_disabled() != disabled);
+			write_gs_sized<bool>(offsetof(Processor, m_smp_messages_disabled), disabled);
 		}
 
 		vaddr_t stack_top_vaddr() const { return m_stack_vaddr + s_stack_size; }
@@ -197,6 +204,8 @@ namespace Kernel
 
 		ProcessorID m_id { 0 };
 		uint8_t m_index { 0 };
+
+		bool m_smp_messages_disabled { false };
 
 		vaddr_t m_thread_syscall_stack;
 

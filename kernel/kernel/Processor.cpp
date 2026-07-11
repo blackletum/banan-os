@@ -447,6 +447,8 @@ namespace Kernel
 		auto processor_id = current_id();
 		auto& processor = s_processors[processor_id.m_id];
 
+		ASSERT(!processor.m_smp_messages_disabled);
+
 		auto* pending = processor.m_smp_pending.exchange(nullptr);
 		if (pending == nullptr)
 			return set_interrupt_state(state);
