@@ -310,14 +310,7 @@ namespace Kernel
 
 		const uint64_t current_ns = SystemTimer::get().ns_since_boot();
 		while (!m_block_queue.empty() && current_ns >= m_block_queue.front()->wake_time_ns)
-		{
-			auto* node = m_block_queue.pop_front();
-			if (auto* blocker = node->blocker.load())
-				blocker->remove_thread_from_block_queue(node);
-			node->blocked = false;
-			update_most_loaded_node_queue(node, &m_run_queue);
-			m_run_queue.add_thread_to_back(node);
-		}
+			unblock_thread(m_block_queue.front());
 	}
 
 	void Scheduler::update_wake_up_deadline()
@@ -388,12 +381,14 @@ namespace Kernel
 			if (!node->blocked)
 				return;
 			ASSERT(node != m_current);
+			Processor::set_disable_smp_messages(true);
 			m_block_queue.remove_node(node);
 			if (auto* blocker = node->blocker.load())
 				blocker->remove_thread_from_block_queue(node);
 			node->blocked = false;
 			m_run_queue.add_thread_to_back(node);
 			update_most_loaded_node_queue(node, &m_run_queue);
+			Processor::set_disable_smp_messages(false);
 		}
 		else
 		{
