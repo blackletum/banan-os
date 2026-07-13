@@ -435,14 +435,14 @@ namespace Kernel::Input
 
 			devices[0] = {
 				.type      = acpi_devices[0].type,
-				.interrupt = acpi_devices[0].irq.value_or(PS2::INTERRUPT_FIRST_PORT)
+				.interrupt = acpi_devices[0].irq.value_or(PS2::IRQ::DEVICE0)
 			};
 
 			if (acpi_devices.size() > 1)
 			{
 				devices[1] = {
 					.type      = acpi_devices[1].type,
-					.interrupt = acpi_devices[1].irq.value_or(PS2::INTERRUPT_SECOND_PORT)
+					.interrupt = acpi_devices[1].irq.value_or(PS2::IRQ::DEVICE1)
 				};
 			}
 		}
@@ -450,11 +450,11 @@ namespace Kernel::Input
 		{
 			devices[0] = {
 				.type = DeviceType::Unknown,
-				.interrupt = PS2::INTERRUPT_FIRST_PORT,
+				.interrupt = PS2::IRQ::DEVICE0,
 			};
 			devices[1] = {
 				.type = DeviceType::Unknown,
-				.interrupt = PS2::INTERRUPT_SECOND_PORT,
+				.interrupt = PS2::IRQ::DEVICE1,
 			};
 		}
 		else
