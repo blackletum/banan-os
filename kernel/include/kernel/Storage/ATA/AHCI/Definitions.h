@@ -32,8 +32,6 @@
 namespace Kernel
 {
 
-	static constexpr uint32_t s_hba_prdt_count { 8 };
-
 	struct FISRegisterH2D
 	{
 		uint8_t  fis_type;			// FIS_TYPE_REGISTER_H2D
@@ -61,7 +59,8 @@ namespace Kernel
 		uint8_t  control;
 
 		uint8_t  __reserved1[4];
-	} __attribute__((packed));
+	};
+	static_assert(sizeof(FISRegisterH2D) == 20);
 
 	struct FISRegisterD2H
 	{
@@ -90,7 +89,8 @@ namespace Kernel
 		uint8_t  __reserved3[2];
 
 		uint8_t  __reserved4[4];
-	} __attribute__((packed));
+	};
+	static_assert(sizeof(FISRegisterD2H) == 20);
 
 	struct FISDataBI
 	{
@@ -102,7 +102,8 @@ namespace Kernel
 		uint8_t  __reserved1[2];
 
 		uint32_t data[0];			// Payload (1 - 2048 dwords)
-	} __attribute__((packed));
+	};
+	static_assert(sizeof(FISDataBI) == 4);
 
 	struct SetDeviceBitsD2H
 	{
@@ -117,7 +118,8 @@ namespace Kernel
 		uint8_t error;
 
 		uint32_t __reserved1;
-	} __attribute__((packed));
+	};
+	static_assert(sizeof(SetDeviceBitsD2H) == 8);
 
 	struct PIOSetupD2H
 	{
@@ -149,7 +151,8 @@ namespace Kernel
 
 		uint16_t tc;				// Transfer count
 		uint8_t  __reserved4[2];
-	} __attribute__((packed));
+	};
+	static_assert(sizeof(PIOSetupD2H) == 20);
 
 	struct DMASetupBI
 	{
@@ -163,8 +166,8 @@ namespace Kernel
 
 		uint8_t  __reserved1[2];
 
-		uint64_t dma_buffer_id;			// DMA Buffer Identifier. Used to Identify DMA buffer in host memory.
-										// SATA Spec says host specific and not in Spec. Trying AHCI spec might work.
+		uint32_t dma_buffer_id_lo;		// DMA Buffer Identifier. Used to Identify DMA buffer in host memory.
+		uint32_t dma_buffer_id_hi;		// SATA Spec says host specific and not in Spec. Trying AHCI spec might work.
 
 		uint32_t __reserved2;
 
@@ -173,7 +176,8 @@ namespace Kernel
 		uint32_t dma_transfer_count;	// Number of bytes to transfer. Bit 0 must be 0
 
 		uint32_t __reserved3;
-	} __attribute__((packed));
+	};
+	static_assert(sizeof(DMASetupBI) == 28);
 
 	struct HBAPortMemorySpace
 	{
@@ -196,7 +200,8 @@ namespace Kernel
 		uint32_t fbs;		// FIS-based switch control
 		uint32_t __reserved1[11];
 		uint32_t vendor[4];
-	} __attribute__((packed));
+	};
+	static_assert(sizeof(HBAPortMemorySpace) == 128);
 
 	struct HBAGeneralMemorySpace
 	{
@@ -217,7 +222,8 @@ namespace Kernel
 		uint8_t  vendor[0x100-0xA0];
 
 		HBAPortMemorySpace ports[0]; // 1 - 32 ports
-	} __attribute__((packed));
+	};
+	static_assert(sizeof(HBAGeneralMemorySpace) == 256);
 
 	struct ReceivedFIS
 	{
@@ -235,7 +241,8 @@ namespace Kernel
 		uint8_t				ufis[64];
 
 		uint8_t				__reserved[0x100-0xA0];
-	} __attribute__((packed));
+	};
+	static_assert(sizeof(ReceivedFIS) == 256);
 
 	struct HBACommandHeader
 	{
@@ -252,13 +259,14 @@ namespace Kernel
 
 		uint16_t prdtl;		// Physical region descriptor table length in entries
 
-		volatile uint32_t prdbc;	// Physical region descriptor byte count transferred
+		uint32_t prdbc;		// Physical region descriptor byte count transferred
 
 		uint32_t ctba;		// Command table descriptor base address
 		uint32_t ctbau;		// Command table descriptor base address upper 32 bits
 
 		uint32_t __reserved1[4];
-	} __attribute__((packed));
+	};
+	static_assert(sizeof(HBACommandHeader) == 32);
 
 	struct HBAPRDTEntry
 	{
@@ -269,15 +277,17 @@ namespace Kernel
 		uint32_t dbc : 22;		// Byte count, 4M max
 		uint32_t __reserved1 : 9;
 		uint32_t i : 1;			// Interrupt on completion
-	} __attribute__((packed));
+	};
+	static_assert(sizeof(HBAPRDTEntry) == 16);
 
 	struct HBACommandTable
 	{
 		uint8_t cfis[64];
 		uint8_t acmd[16];
 		uint8_t __reserved[48];
-		HBAPRDTEntry prdt_entry[s_hba_prdt_count];
-	} __attribute__((packed));
+		HBAPRDTEntry prdt_entry[0];
+	};
+	static_assert(sizeof(HBACommandTable) == 128);
 
 	enum class AHCIPortType
 	{

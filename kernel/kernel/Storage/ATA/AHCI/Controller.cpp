@@ -39,6 +39,7 @@ namespace Kernel
 		m_pci_device.enable_interrupt(0, *this);
 		abar_mem.ghc = abar_mem.ghc | SATA_GHC_INTERRUPT_ENABLE;
 
+		m_supports_64bit = !!(abar_mem.cap & (1u << 31));
 		m_command_slot_count = ((abar_mem.cap >> 8) & 0x1F) + 1;
 
 		uint32_t pi = abar_mem.pi;
@@ -85,28 +86,29 @@ namespace Kernel
 
 	void AHCIController::handle_irq()
 	{
-		auto& abar_mem = *(volatile HBAGeneralMemorySpace*)m_abar->vaddr();
+		auto& abar_mem = *reinterpret_cast<volatile HBAGeneralMemorySpace*>(m_abar->vaddr());
 
-		const uint32_t is = abar_mem.is;
-		abar_mem.is = is;
-
-		for (uint8_t i = 0; i < 32; i++)
+		while (uint32_t is = abar_mem.is)
 		{
-			if (is & (1 << i))
+			abar_mem.is = is;
+
+			while (is != 0)
 			{
-				if (m_devices[i])
-					m_devices[i]->handle_irq();
+				const size_t idx = __builtin_ctz(is);
+				if (auto& device = m_devices[idx])
+					device->handle_irq();
 				else
-					dwarnln("ignoring interrupt to device {}", i);
+					dwarnln("ignoring interrupt for port {}", idx);
+				is &= ~(1u << idx);
 			}
 		}
 	}
 
 	BAN::Optional<AHCIPortType> AHCIController::check_port_type(volatile HBAPortMemorySpace& port)
 	{
-		uint32_t ssts = port.ssts;
-		uint8_t ipm = (ssts >> 8) & 0x0F;
-		uint8_t det = (ssts >> 0) & 0x0F;
+		const uint32_t ssts = port.ssts;
+		const uint8_t ipm = (ssts >> 8) & 0x0F;
+		const uint8_t det = (ssts >> 0) & 0x0F;
 
 		if (det != HBA_PORT_DET_PRESENT)
 			return {};

@@ -22,6 +22,7 @@ namespace Kernel
 
 		virtual void handle_irq() override;
 
+		bool supports_64bit() const { return m_supports_64bit; }
 		uint32_t command_slot_count() const { return m_command_slot_count; }
 
 	private:
@@ -38,9 +39,8 @@ namespace Kernel
 
 		BAN::Array<AHCIDevice*, 32> m_devices;
 
+		bool m_supports_64bit { false };
 		uint32_t m_command_slot_count { 0 };
-
-		friend class ATAController;
 	};
 
 }
