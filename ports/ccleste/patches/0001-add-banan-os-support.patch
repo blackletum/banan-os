@@ -1,0 +1,29 @@
+diff -ruN ccleste-1.4.0/Makefile ccleste-1.4.0-banan_os/Makefile
+--- ccleste-1.4.0/Makefile	2021-11-24 16:25:50.000000000 +0200
++++ ccleste-1.4.0-banan_os/Makefile	2026-07-13 10:40:21.576609103 +0300
+@@ -3,11 +3,11 @@
+ SDL_VER?=2
+ 
+ ifeq ($(SDL_VER),2)
+-	SDL_CONFIG=sdl2-config
++	SDL_CONFIG=$(SDL_PREFIX)sdl2-config
+ 	SDL_LD=-lSDL2 -lSDL2_mixer
+ else
+ ifeq ($(SDL_VER),1)
+-	SDL_CONFIG=sdl-config
++	SDL_CONFIG=$(SDL_PREFIX)sdl-config
+ 	SDL_LD=-lSDL -lSDL_mixer
+ else
+ 	SDL_CONFIG=$(error "invalid SDL version '$(SDL_VER)'. possible values are '1' and '2'")
+diff -ruN ccleste-1.4.0/sdl12main.c ccleste-1.4.0-banan_os/sdl12main.c
+--- ccleste-1.4.0/sdl12main.c	2021-11-24 16:25:50.000000000 +0200
++++ ccleste-1.4.0-banan_os/sdl12main.c	2026-07-13 10:39:55.050258303 +0300
+@@ -83,6 +83,8 @@
+ static char* GetDataPath(char* path, int n, const char* fname) {
+ #ifdef _3DS
+ 	snprintf(path, n, "romfs:/%s", fname);
++#elif defined(__banan_os__)
++	snprintf(path, n, "/usr/share/Games/ccleste/%s", fname);
+ #else
+ #ifdef _WIN32
+ 	char pathsep = '\\';
