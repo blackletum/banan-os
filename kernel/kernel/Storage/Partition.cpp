@@ -79,17 +79,19 @@ namespace Kernel
 		if (!device)
 			return BAN::Error::from_errno(ENODEV);
 
-		if (offset % device->blksize() || buffer.size() % device->blksize())
-			return BAN::Error::from_errno(ENOTSUP);
+		if (offset < 0 || offset % device->blksize())
+			return BAN::Error::from_errno(EINVAL);
 
-		const uint32_t blocks_in_partition = m_last_block - m_first_block + 1;
-		uint32_t first_block = offset / device->blksize();
-		uint32_t block_count = buffer.size() / device->blksize();
+		const uint64_t blocks_in_partition = m_last_block - m_first_block + 1;
+		const uint64_t first_block = offset / device->blksize();
+		uint64_t block_count = buffer.size() / device->blksize();
 
 		if (first_block >= blocks_in_partition)
 			return 0;
 		if (first_block + block_count > blocks_in_partition)
 			block_count = blocks_in_partition - first_block;
+		if (block_count == 0)
+			return 0;
 
 		TRY(read_blocks(first_block, block_count, buffer));
 		return block_count * device->blksize();
