@@ -301,22 +301,44 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> StorageDevice::read_impl(off_t offset, BAN::ByteSpan buffer)
 	{
-		if (offset % sector_size())
+		if (offset < 0 || offset % sector_size())
 			return BAN::Error::from_errno(EINVAL);
-		if (buffer.size() % sector_size())
-			return BAN::Error::from_errno(EINVAL);
-		TRY(read_sectors(offset / sector_size(), buffer.size() / sector_size(), buffer));
-		return buffer.size();
+
+		const uint64_t total_blocks = total_size() / sector_size();
+
+		const uint64_t first_block = offset / sector_size();
+		uint64_t block_count = buffer.size() / sector_size();
+
+		if (first_block >= total_blocks)
+			return 0;
+		if (first_block + block_count > total_blocks)
+			block_count = m_blocks - first_block;
+		if (block_count == 0)
+			return 0;
+
+		TRY(read_sectors(first_block, block_count, buffer));
+		return block_count * sector_size();
 	}
 
 	BAN::ErrorOr<size_t> StorageDevice::write_impl(off_t offset, BAN::ConstByteSpan buffer)
 	{
-		if (offset % sector_size())
+		if (offset < 0 || offset % sector_size())
 			return BAN::Error::from_errno(EINVAL);
-		if (buffer.size() % sector_size())
-			return BAN::Error::from_errno(EINVAL);
-		TRY(write_sectors(offset / sector_size(), buffer.size() / sector_size(), buffer));
-		return buffer.size();
+
+		const uint64_t total_blocks = total_size() / sector_size();
+
+		const uint64_t first_block = offset / sector_size();
+		uint64_t block_count = buffer.size() / sector_size();
+
+		if (first_block >= total_blocks)
+			return 0;
+		if (first_block + block_count > total_blocks)
+			block_count = m_blocks - first_block;
+		if (block_count == 0)
+			return 0;
+
+		TRY(write_sectors(first_block, block_count, buffer));
+		return block_count * sector_size();
 	}
 
 }
