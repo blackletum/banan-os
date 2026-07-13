@@ -28,7 +28,7 @@ static pthread_attr_t s_default_pthread_attr {
 	.scope        = PTHREAD_SCOPE_SYSTEM,
 	.stackaddr    = nullptr,
 	.stacksize    = 8 * 1024 * 1024,
-	.guardsize    = static_cast<size_t>(getpagesize()),
+	.guardsize    = 0,
 };
 
 static BAN::Atomic<struct uthread*> s_pending_uthread_deletion { nullptr };
@@ -46,6 +46,8 @@ static void _pthread_cancel_handler(int)
 __attribute__((constructor))
 static void _init_pthread()
 {
+	s_default_pthread_attr.guardsize = getpagesize();
+
 	uthread* uthread = _get_uthread();
 	uthread->id              = syscall(SYS_THREAD_GETID);
 	uthread->attr            = s_default_pthread_attr;
@@ -69,9 +71,9 @@ static void _init_pthread()
 
 	const char* last_slash = strrchr(buffer, '/');
 	if (last_slash == nullptr)
-		last_slash = buffer;
+		last_slash = buffer - 1;
 
-	strncpy(uthread->name, last_slash, sizeof(uthread->name));
+	strncpy(uthread->name, last_slash + 1, sizeof(uthread->name));
 	uthread->name[sizeof(uthread->name) - 1] = '\0';
 
 	signal(SIGCANCEL, &_pthread_cancel_handler);
@@ -742,11 +744,9 @@ int pthread_setcanceltype(int type, int* oldtype)
 
 int pthread_getschedparam(pthread_t thread, int* __restrict policy, struct sched_param* __restrict param)
 {
-	(void)thread;
-	(void)policy;
-	(void)param;
-	dwarnln("TODO: pthread_getschedparam");
-	return ENOTSUP;
+	*policy = thread->attr.schedpolicy;
+	*param  = thread->attr.schedparam;
+	return 0;
 }
 
 int pthread_setschedparam(pthread_t thread, int policy, const struct sched_param* param)
