@@ -1,0 +1,66 @@
+From e93c43f5c55e67cd3fb79bc890d698492cb5861d Mon Sep 17 00:00:00 2001
+From: Oskari Alaranta <oskari.alaranta@bananymous.com>
+Date: Mon, 13 Jul 2026 23:05:59 +0300
+Subject: [PATCH] cleanup-makefile-for-cross-compile
+
+---
+ Makefile | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 8edbffa..88709bd 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,6 +1,6 @@
+ 
+-SDL_CFLAGS = `sdl2-config --cflags`
+-SDL_LIBS = `sdl2-config --cflags --libs` -lSDL2_mixer
++SDL_CFLAGS = `$(SDL_PREFIX)sdl2-config --cflags`
++SDL_LIBS = `$(SDL_PREFIX)sdl2-config --cflags --libs` -lSDL2_mixer
+ 
+ MOUNT_DIR=.
+ 
+@@ -28,10 +28,9 @@ RELEASE_CFLAGS=$(BASE_CFLAGS) -O6 -ffast-math -funroll-loops \
+ 
+ DEBUG_CFLAGS=$(BASE_CFLAGS) -g
+ LDFLAGS=-ldl -lm
+-XCFLAGS=-I/opt/X11/include
++XCFLAGS=
+ 
+-GLLDFLAGS=-L/usr/X11/lib -L/usr/local/lib \
+-	$(SDL_LIBS) -lGL
++GLLDFLAGS=$(SDL_LIBS) -lGL
+ GLCFLAGS=$(SDL_CFLAGS)
+ 
+ SHLIBEXT=so
+@@ -124,7 +123,7 @@ QUAKE2_OBJS = \
+ 	\
+ 	$(BUILDDIR)/net/net_unix.o \
+ 	\
+-	$(BUILDDIR)/sound/snddma_null.o \
++	$(BUILDDIR)/sound/snd_sdl.o \
+ 	\
+ 	$(BUILDDIR)/port_platform_unix.o
+ 
+@@ -227,7 +226,7 @@ REF_GL_OBJS = \
+ 
+ 
+ $(BUILDDIR)/quake2-soft : $(QUAKE2_OBJS) $(GAME_OBJS) $(REF_SOFT_OBJS) $(REF_SOFT_SDL_OBJS)
+-	$(CC) $(CFLAGS) -o $@ $(QUAKE2_OBJS) $(GAME_OBJS) $(REF_SOFT_OBJS) $(REF_SOFT_SDL_OBJS) $(LDFLAGS) $(GLLDFLAGS)
++	$(CC) $(CFLAGS) -o $@ $(QUAKE2_OBJS) $(GAME_OBJS) $(REF_SOFT_OBJS) $(REF_SOFT_SDL_OBJS) $(LDFLAGS) $(SDL_LIBS)
+ 
+ $(BUILDDIR)/quake2-gl : $(QUAKE2_OBJS) $(GAME_OBJS) $(REF_GL_OBJS)
+ 	$(CC) $(CFLAGS) -o $@ $(QUAKE2_OBJS) $(GAME_OBJS) $(REF_GL_OBJS) $(LDFLAGS) $(GLLDFLAGS)
+@@ -368,6 +367,9 @@ $(BUILDDIR)/net/net_unix.o :    $(NET_DIR)/net_unix.c
+ $(BUILDDIR)/port_platform_unix.o :    $(MOUNT_DIR)/port_platform_unix.c
+ 	$(DO_CC)
+ 
++$(BUILDDIR)/sound/snd_sdl.o :    $(SOUND_DIR)/snd_sdl.c
++	$(DO_GL_SHLIB_CC)
++
+ $(BUILDDIR)/sound/snddma_null.o :    $(SOUND_DIR)/snddma_null.c
+ 	$(DO_GL_SHLIB_CC)
+ 
+-- 
+2.55.0
+

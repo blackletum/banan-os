@@ -10,8 +10,13 @@ configure() {
 }
 
 build() {
-	baseq2_tar=../baseq2.tar.gz
-	baseq2_hash=9660c306d9440ff7d534f165ae4a7f550b9e879d5190830953034ebda10e873a
+	local cflags='-Dstricmp=strcasecmp -O2 -ffast-math -Wno-incompatible-pointer-types -Wno-pointer-to-int-cast'
+	make -j$(nproc) createdirs build/quake2-soft CC="$CC" CFLAGS="$cflags" SDL_PREFIX="$BANAN_SYSROOT/usr/bin/" || exit 1
+}
+
+pre_install() {
+	local baseq2_tar='../baseq2.tar.gz'
+	local baseq2_hash='9660c306d9440ff7d534f165ae4a7f550b9e879d5190830953034ebda10e873a'
 
 	if [ -f $baseq2_tar ]; then
 		if ! echo "$baseq2_hash $baseq2_tar" | sha256sum --check >/dev/null; then
@@ -25,9 +30,6 @@ build() {
 		echo "File hash does not match" >&2
 		exit 1
 	fi
-
-	cflags='-Dstricmp=strcasecmp -O3 -ffast-math -Wno-incompatible-pointer-types -Wno-pointer-to-int-cast'
-	make CC="$CC" CFLAGS="$cflags" SDL_PATH="$BANAN_SYSROOT/usr/bin/" -j$(nproc) createdirs build/quake2-soft || exit 1
 }
 
 install() {
