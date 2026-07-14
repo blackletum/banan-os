@@ -926,11 +926,11 @@ int pthread_mutex_timedlock(pthread_mutex_t* __restrict mutex, const struct time
 		const int op = FUTEX_WAIT | (mutex->attr.shared ? 0 : FUTEX_PRIVATE) | FUTEX_REALTIME;
 
 		BAN::atomic_add_fetch(mutex->waiters, 1);
-		const auto ret = futex(op, &mutex->futex, expected, abstime);
+		const auto err = futex(op, &mutex->futex, expected, abstime);
 		BAN::atomic_sub_fetch(mutex->waiters, 1);
 
-		if (ret == -1 && errno == ETIMEDOUT)
-			return ETIMEDOUT;
+		if (err && err != EAGAIN)
+			return err;
 
 		expected = 0;
 	}
@@ -1232,8 +1232,8 @@ int pthread_cond_timedwait(pthread_cond_t* __restrict cond, pthread_mutex_t* __r
 		const int op = FUTEX_WAIT
 			| (cond->attr.shared ? 0 : FUTEX_PRIVATE)
 			| (cond->attr.clock == CLOCK_REALTIME ? FUTEX_REALTIME : 0);
-		if (futex(op, &block.futex, 0, abstime) == -1 && errno == ETIMEDOUT)
-			ret = ETIMEDOUT;
+		if (const int err = futex(op, &block.futex, 0, abstime); err != EAGAIN)
+			ret = err;
 	}
 
 	pthread_spin_lock(&cond->lock);
@@ -1249,6 +1249,7 @@ int pthread_cond_timedwait(pthread_cond_t* __restrict cond, pthread_mutex_t* __r
 	pthread_spin_unlock(&cond->lock);
 
 	pthread_mutex_lock(mutex);
+
 	return ret;
 }
 
