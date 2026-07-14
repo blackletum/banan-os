@@ -761,7 +761,7 @@ namespace Kernel
 		thread_blocker.block_with_wake_time_ns(wake_time_ns, mutex);
 		if (is_interrupted_by_signal(true))
 			return BAN::Error::from_errno(EINTR);
-		if (etimedout && SystemTimer::get().ms_since_boot() >= wake_time_ns)
+		if (etimedout && SystemTimer::get().ns_since_boot() >= wake_time_ns)
 			return BAN::Error::from_errno(ETIMEDOUT);
 		return {};
 	}
