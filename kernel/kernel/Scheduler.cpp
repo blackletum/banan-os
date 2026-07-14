@@ -667,6 +667,9 @@ namespace Kernel
 
 	void Scheduler::block_current_thread(ThreadBlocker* blocker, uint64_t wake_time_ns, BaseMutex* mutex)
 	{
+		if (SystemTimer::get().ns_since_boot() >= wake_time_ns)
+			return;
+
 		auto state = Processor::get_interrupt_state();
 		Processor::set_interrupt_state(InterruptState::Disabled);
 
