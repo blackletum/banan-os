@@ -424,12 +424,8 @@ void* aligned_alloc(size_t alignment, size_t size)
 int posix_memalign(void** memptr, size_t alignment, size_t size)
 {
 	if (alignment < sizeof(void*) || !BAN::Math::is_power_of_two(alignment))
-	{
-		errno = EINVAL;
-		return -1;
-	}
-
-	return (*memptr = aligned_alloc(alignment, size)) ? 0 : -1;
+		return EINVAL;
+	return (*memptr = aligned_alloc(alignment, size)) ? 0 : errno;
 }
 
 size_t malloc_usable_size(void* ptr)
