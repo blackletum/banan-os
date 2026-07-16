@@ -229,7 +229,11 @@ void* malloc(size_t total_size)
 {
 	if (total_size >= s_mmap_threshold)
 	{
-		const size_t mmap_size = sizeof(MmapAllocationHeader) + total_size;
+		const size_t page_size = getpagesize();
+
+		size_t mmap_size = sizeof(MmapAllocationHeader) + total_size;
+		if (const auto rem = mmap_size % page_size)
+			mmap_size += page_size - rem;
 
 		void* address = mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 		if (address == MAP_FAILED)
@@ -399,7 +403,11 @@ void* aligned_alloc(size_t alignment, size_t size)
 
 	static_assert(sizeof(MmapAllocationHeader) <= alignof(max_align_t));
 
+	const size_t page_size = getpagesize();
+
 	size_t mmap_size = alignment + size;
+	if (const auto rem = mmap_size % page_size)
+		mmap_size += page_size - rem;
 
 	void* addr_ptr = mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 	if (addr_ptr == MAP_FAILED)
@@ -411,7 +419,6 @@ void* aligned_alloc(size_t alignment, size_t size)
 	if (const auto rem = data % alignment)
 		data += alignment - rem;
 
-	const size_t page_size = getpagesize();
 	if ((data - sizeof(MmapAllocationHeader)) - addr >= page_size)
 	{
 		const size_t pages_to_free = ((data - sizeof(MmapAllocationHeader)) - addr) / page_size;
