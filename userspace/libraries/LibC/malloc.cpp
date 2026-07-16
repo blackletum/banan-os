@@ -305,7 +305,7 @@ void free(void* ptr)
 
 	const auto& header = static_cast<MmapAllocationHeader*>(ptr)[-1];
 	s_mmap_count--;
-	s_mmap_bytes += header.mmap_size;
+	s_mmap_bytes -= header.mmap_size;
 	munmap(static_cast<uint8_t*>(ptr) - header.offset, header.mmap_size);
 }
 
