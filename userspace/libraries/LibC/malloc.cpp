@@ -370,7 +370,8 @@ void* calloc(size_t nmemb, size_t size)
 	if (ptr == nullptr)
 		return nullptr;
 
-	memset(ptr, 0, total);
+	if (total < s_mmap_threshold)
+		memset(ptr, 0, total);
 	return ptr;
 }
 
