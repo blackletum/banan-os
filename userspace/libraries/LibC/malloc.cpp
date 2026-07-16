@@ -313,47 +313,78 @@ void free(void* ptr)
 	munmap(static_cast<uint8_t*>(ptr) - header.offset, header.mmap_size);
 }
 
-static size_t allocation_size(void* ptr)
-{
-	pthread_mutex_lock(&s_allocator_lock);
-	for (size_t i = 0; i < s_allocator_count; i++)
-	{
-		if (!s_allocators[i].contains(ptr))
-			continue;
-		const size_t size = s_allocators[i].allocation_size(ptr);
-		pthread_mutex_unlock(&s_allocator_lock);
-		return size;
-	}
-	pthread_mutex_unlock(&s_allocator_lock);
-
-	const auto& header = static_cast<MmapAllocationHeader*>(ptr)[-1];
-	return header.mmap_size - header.offset;
-}
-
 void* realloc(void* ptr, size_t size)
 {
 	if (ptr == nullptr)
 		return malloc(size);
 
+	bool was_mmapped = true;
+	size_t old_alloc_size = 0;
+
 	pthread_mutex_lock(&s_allocator_lock);
 	for (size_t i = 0; i < s_allocator_count; i++)
 	{
 		if (!s_allocators[i].contains(ptr))
 			continue;
-		if (!s_allocators[i].resize(ptr, size))
-			break;
-		pthread_mutex_unlock(&s_allocator_lock);
-		return ptr;
+		if (s_allocators[i].resize(ptr, size))
+		{
+			pthread_mutex_unlock(&s_allocator_lock);
+			return ptr;
+		}
+		was_mmapped = false;
+		old_alloc_size = s_allocators[i].allocation_size(ptr);
+		break;
 	}
 	pthread_mutex_unlock(&s_allocator_lock);
 
-	// TODO: maybe an in-place realloc for mmap-backed allocations?
+	if (was_mmapped)
+	{
+		auto& header = static_cast<MmapAllocationHeader*>(ptr)[-1];
+
+		old_alloc_size = header.mmap_size - header.offset;
+
+		if (size == old_alloc_size)
+			return ptr;
+
+		const size_t page_size = getpagesize();
+
+		size_t new_mmap_size = header.offset + size;
+		if (const auto rem = new_mmap_size % page_size)
+			new_mmap_size += page_size - rem;
+
+		if (size < old_alloc_size)
+		{
+			// TODO: should we drop back to bitmap based allocations if the new size is < mmap threshold?
+			const size_t shrink_bytes = header.mmap_size - new_mmap_size;
+			munmap(static_cast<uint8_t*>(ptr) - header.offset + new_mmap_size, shrink_bytes);
+			s_mmap_bytes -= shrink_bytes;
+			header.mmap_size = new_mmap_size;
+			return ptr;
+		}
+
+		const size_t extend_bytes = new_mmap_size - header.mmap_size;
+
+		void* extend_data = mmap(
+			static_cast<uint8_t*>(ptr) - header.offset + header.mmap_size,
+			extend_bytes,
+			PROT_READ | PROT_WRITE,
+			MAP_ANONYMOUS | MAP_PRIVATE | MAP_FIXED_NOREPLACE,
+			-1, 0
+		);
+
+		if (extend_data != MAP_FAILED)
+		{
+			s_mmap_bytes += extend_bytes;
+			header.mmap_size = new_mmap_size;
+			return ptr;
+		}
+	}
 
 	void* new_ptr = malloc(size);
 	if (new_ptr == nullptr)
 		return nullptr;
 
-	memcpy(new_ptr, ptr, BAN::Math::min(allocation_size(ptr), size));
+	memcpy(new_ptr, ptr, BAN::Math::min(old_alloc_size, size));
 
 	free(ptr);
 
@@ -449,7 +480,20 @@ size_t malloc_usable_size(void* ptr)
 {
 	if (ptr == nullptr)
 		return 0;
-	return allocation_size(ptr);
+
+	pthread_mutex_lock(&s_allocator_lock);
+	for (size_t i = 0; i < s_allocator_count; i++)
+	{
+		if (!s_allocators[i].contains(ptr))
+			continue;
+		const size_t size = s_allocators[i].allocation_size(ptr);
+		pthread_mutex_unlock(&s_allocator_lock);
+		return size;
+	}
+	pthread_mutex_unlock(&s_allocator_lock);
+
+	const auto& header = static_cast<MmapAllocationHeader*>(ptr)[-1];
+	return header.mmap_size - header.offset;
 }
 
 struct mallinfo mallinfo(void)
