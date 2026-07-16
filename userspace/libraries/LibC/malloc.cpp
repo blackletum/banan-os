@@ -398,25 +398,34 @@ void* aligned_alloc(size_t alignment, size_t size)
 
 	static_assert(sizeof(MmapAllocationHeader) <= alignof(max_align_t));
 
-	const size_t mmap_size = alignment + size;
+	size_t mmap_size = alignment + size;
 
-	void* address = mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-	if (address == MAP_FAILED)
+	void* addr_ptr = mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+	if (addr_ptr == MAP_FAILED)
 		return nullptr;
+
+	uintptr_t addr = reinterpret_cast<uintptr_t>(addr_ptr);
+
+	uintptr_t data = addr + sizeof(MmapAllocationHeader);
+	if (const auto rem = data % alignment)
+		data += alignment - rem;
+
+	const size_t page_size = getpagesize();
+	if ((data - sizeof(MmapAllocationHeader)) - addr >= page_size)
+	{
+		const size_t pages_to_free = ((data - sizeof(MmapAllocationHeader)) - addr) / page_size;
+		munmap(addr_ptr, pages_to_free * page_size);
+		mmap_size -= pages_to_free * page_size;
+		addr += pages_to_free * page_size;
+	}
 
 	s_mmap_count++;
 	s_mmap_bytes += mmap_size;
 
-	uintptr_t data = reinterpret_cast<uintptr_t>(address) + sizeof(MmapAllocationHeader);
-	if (auto rem = data % alignment)
-		data += alignment - rem;
-
-	// TODO: unmap possible unused pages in alignment, they are only allocated when accessed so doesn't really matter :^)
-
 	auto& header = reinterpret_cast<MmapAllocationHeader*>(data)[-1];
 	header = {
 		.mmap_size = mmap_size,
-		.offset = data - reinterpret_cast<uintptr_t>(address),
+		.offset = data - addr,
 	};
 	return &header + 1;
 }
