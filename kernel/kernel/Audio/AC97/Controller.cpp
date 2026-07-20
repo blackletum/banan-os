@@ -182,13 +182,22 @@ namespace Kernel
 		m_bdl_region = TRY(DMARegion::create(bdl_size + buffer_size * m_used_bdl_entries));
 		memset(reinterpret_cast<void*>(m_bdl_region->vaddr()), 0x00, m_bdl_region->size());
 
+		if (m_bdl_region->paddr() + m_bdl_region->size() > BAN::numeric_limits<uint32_t>::max())
+		{
+			dwarnln("Could not allocate 32 bit dma buffer");
+			return BAN::Error::from_errno(EFAULT);
+		}
+
+		auto* bdl_entries = reinterpret_cast<AC97::BufferDescriptorListEntry*>(m_bdl_region->vaddr());
 		for (size_t i = 0; i < m_bdl_entries; i++)
 		{
-			auto& entry = reinterpret_cast<AC97::BufferDescriptorListEntry*>(m_bdl_region->vaddr())[i];
-			entry.address = m_bdl_region->paddr() + bdl_size + (i % m_used_bdl_entries) * buffer_size;
-			entry.samples = 0;
-			entry.flags = 0;
+			bdl_entries[i] = {
+				.address = static_cast<uint32_t>(m_bdl_region->paddr() + bdl_size + (i % m_used_bdl_entries) * buffer_size),
+				.samples = 0,
+				.flags   = 1 << 15,
+			};
 		}
+		bdl_entries[m_bdl_entries - 1].flags |= 1 << 14;
 
 		m_bus_master->write32(BusMasterRegister::PO_BDBAR, m_bdl_region->paddr());
 
@@ -245,7 +254,6 @@ namespace Kernel
 
 			auto& entry = reinterpret_cast<AC97::BufferDescriptorListEntry*>(m_bdl_region->vaddr())[m_bdl_head];
 			entry.samples = sample_frames * get_channels();
-			entry.flags = (1 << 15);
 			memcpy(
 				reinterpret_cast<void*>(m_bdl_region->paddr_to_vaddr(entry.address)),
 				m_sample_data->get_data().data(),
