@@ -230,7 +230,7 @@ static void init2(void*)
 
 	if (!cmdline.disable_acpi)
 	{
-		if (auto ret = ACPI::ACPI::get().enter_acpi_mode(InterruptController::get().is_using_apic()); ret.is_error())
+		if (auto ret = ACPI::ACPI::get().enter_acpi_mode(); ret.is_error())
 			dprintln("Failed to enter ACPI mode: {}", ret.error());
 		if (auto ret = ACPI::ACPI::get().initialize_acpi_devices(); ret.is_error())
 			dwarnln("Could not initialize ACPI devices: {}", ret.error());

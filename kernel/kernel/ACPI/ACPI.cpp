@@ -934,7 +934,7 @@ acpi_release_global_lock:
 		return false;
 	}
 
-	BAN::ErrorOr<void> ACPI::enter_acpi_mode(uint8_t mode)
+	BAN::ErrorOr<void> ACPI::enter_acpi_mode()
 	{
 		ASSERT(!m_namespace);
 
@@ -1013,7 +1013,7 @@ acpi_release_global_lock:
 
 			AML::Reference arg_ref;
 			arg_ref.node.type = AML::Node::Type::Integer;
-			arg_ref.node.as.integer.value = mode;
+			arg_ref.node.as.integer.value = InterruptController::get().is_using_apic() ? 1 : 0;
 			arg_ref.ref_count = 2;
 
 			BAN::Array<AML::Reference*, 7> arguments(nullptr);
@@ -1021,7 +1021,7 @@ acpi_release_global_lock:
 			TRY(AML::method_call(pic_path, pic_node, BAN::move(arguments)));
 		}
 
-		dprintln("Evaluated \\_PIC({})", mode);
+		dprintln("Evaluated \\_PIC({})", InterruptController::get().is_using_apic() ? 1 : 0);
 
 		uint8_t irq = fadt().sci_int;
 		if (auto ret = InterruptController::get().reserve_irq(irq); ret.is_error())
@@ -1097,14 +1097,17 @@ acpi_release_global_lock:
 
 		dprintln("Initialized ACPI interrupts");
 
-		if (auto interrupt_link_devices_or_error = m_namespace->find_device_with_eisa_id("PNP0C0F"_sv); !interrupt_link_devices_or_error.is_error())
+		if (InterruptController::get().is_using_apic())
 		{
-			uint64_t routed_irq_mask = 0;
-			auto interrupt_link_devices = interrupt_link_devices_or_error.release_value();
-			for (const auto& device : interrupt_link_devices)
-				if (auto ret = route_interrupt_link_device(device, routed_irq_mask); ret.is_error())
-					dwarnln("failed to route interrupt link device: {}", ret.error());
-			dprintln("Routed interrupt link devices");
+			if (auto interrupt_link_devices_or_error = m_namespace->find_device_with_eisa_id("PNP0C0F"_sv); !interrupt_link_devices_or_error.is_error())
+			{
+				uint64_t routed_irq_mask = 0;
+				auto interrupt_link_devices = interrupt_link_devices_or_error.release_value();
+				for (const auto& device : interrupt_link_devices)
+					if (auto ret = route_interrupt_link_device(device, routed_irq_mask); ret.is_error())
+						dwarnln("failed to route interrupt link device: {}", ret.error());
+				dprintln("Routed interrupt link devices");
+			}
 		}
 
 		return {};
