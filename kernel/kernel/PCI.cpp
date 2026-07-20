@@ -45,6 +45,36 @@ namespace Kernel::PCI
 	};
 	static_assert(sizeof(MSIXEntry) == 16);
 
+	class PCIPinInterrupt : public Interruptable
+	{
+	public:
+		PCIPinInterrupt(uint8_t irq)
+		{
+			Interruptable::set_irq(irq);
+			InterruptController::get().enable_irq(irq, true);
+		}
+
+		void handle_irq() override
+		{
+			SpinLockGuard _(m_lock);
+			for (auto* interruptable : m_interruptables)
+				interruptable->handle_irq();
+		}
+
+		BAN::ErrorOr<void> add_interruptable(Interruptable* interruptable)
+		{
+			SpinLockGuard _(m_lock);
+			TRY(m_interruptables.push_back(interruptable));
+			return {};
+		}
+
+	private:
+		SpinLock m_lock;
+		BAN::Vector<Interruptable*> m_interruptables;
+	};
+
+	static BAN::HashMap<uint8_t, BAN::UniqPtr<PCIPinInterrupt>> s_pci_pin_interrupts;
+
 	static uint32_t get_device_io_address(uint8_t bus, uint8_t dev, uint8_t func)
 	{
 		 return 0x80000000
@@ -427,9 +457,6 @@ namespace Kernel::PCI
 
 	void PCI::Device::enable_interrupt(uint8_t index, Interruptable& interruptable)
 	{
-		const uint8_t irq = get_interrupt(index);
-		interruptable.set_irq(irq);
-
 		const auto disable_msi =
 			[this]()
 			{
@@ -450,23 +477,32 @@ namespace Kernel::PCI
 				write_word(*m_offset_msi_x + 0x02, msg_ctrl);
 			};
 
+		const uint8_t irq = get_interrupt(index);
+
 		switch (m_interrupt_mechanism)
 		{
 			case InterruptMechanism::NONE:
 				ASSERT_NOT_REACHED();
 			case InterruptMechanism::PIN:
+			{
 				enable_pin_interrupts();
 				disable_msi();
 				disable_msi_x();
 
-				if (!InterruptController::get().is_using_apic())
-					write_byte(PCI_REG_IRQ_LINE, irq);
-				InterruptController::get().enable_irq(irq);
+				// TODO: allow failing
+				auto it = s_pci_pin_interrupts.find(irq);
+				if (it == s_pci_pin_interrupts.end())
+					it = MUST(s_pci_pin_interrupts.insert(irq, MUST(BAN::UniqPtr<PCIPinInterrupt>::create(irq))));
+				MUST(it->value->add_interruptable(&interruptable));
+
 				break;
+			}
 			case InterruptMechanism::MSI:
 			{
 				disable_pin_interrupts();
 				disable_msi_x();
+
+				interruptable.set_irq(irq);
 
 				uint16_t msg_ctrl = read_word(*m_offset_msi + 0x02);
 				msg_ctrl &= ~(0x07 << 4);	// Only one interrupt
@@ -494,6 +530,8 @@ namespace Kernel::PCI
 			{
 				disable_pin_interrupts();
 				disable_msi();
+
+				interruptable.set_irq(irq);
 
 				uint16_t msg_ctrl = read_word(*m_offset_msi_x + 0x02);
 				msg_ctrl |= 1 << 15; // Enable
@@ -548,7 +586,7 @@ namespace Kernel::PCI
 			debug_guard.disable();
 
 			auto& apic = static_cast<APIC&>(InterruptController::get());
-			return TRY(apic.reserve_gsi(gsi_value));
+			return TRY(apic.reserve_gsi(gsi_value, true));
 		}
 		else
 		{
@@ -587,11 +625,8 @@ namespace Kernel::PCI
 							if (irq_mask & (1 << irq))
 								break;
 
-						if (auto ret = InterruptController::get().reserve_irq(irq); ret.is_error())
-						{
-							dwarnln("FIXME: irq sharing");
+						if (auto ret = InterruptController::get().reserve_irq(irq, true); ret.is_error())
 							return ret.release_error();
-						}
 
 						return irq;
 					}
@@ -621,11 +656,8 @@ namespace Kernel::PCI
 
 						debug_guard.disable();
 
-						if (auto ret = InterruptController::get().reserve_irq(irq); ret.is_error())
-						{
-							dwarnln("FIXME: irq sharing");
+						if (auto ret = InterruptController::get().reserve_irq(irq, true); ret.is_error())
 							return ret.release_error();
-						}
 
 						return irq;
 					}
@@ -747,28 +779,21 @@ namespace Kernel::PCI
 		const auto mechanism =
 			[this, count]() -> InterruptMechanism
 			{
-				if (!InterruptController::get().is_using_apic())
+				if (InterruptController::get().is_using_apic())
 				{
-					// FIXME: support multiple PIN interrupts
-					if (count == 1)
-						return InterruptMechanism::PIN;
+					if (m_offset_msi_x.has_value())
+					{
+						const uint16_t msg_ctrl = read_word(*m_offset_msi_x + 0x02);
+						if (count <= (msg_ctrl & 0x7FF) + 1)
+							return InterruptMechanism::MSIX;
+					}
 
-					// MSI cannot be used without LAPIC
-					return InterruptMechanism::NONE;
-				}
-
-				if (m_offset_msi_x.has_value())
-				{
-					const uint16_t msg_ctrl = read_word(*m_offset_msi_x + 0x02);
-					if (count <= (msg_ctrl & 0x7FF) + 1)
-						return InterruptMechanism::MSIX;
-				}
-
-				if (m_offset_msi.has_value())
-				{
-					if (count == 1)
-						return InterruptMechanism::MSI;
-					// FIXME: support multiple MSIs
+					if (m_offset_msi.has_value())
+					{
+						if (count == 1)
+							return InterruptMechanism::MSI;
+						// FIXME: support multiple MSIs
+					}
 				}
 
 				if (count == 1)
@@ -790,10 +815,17 @@ namespace Kernel::PCI
 					case InterruptMechanism::NONE:
 						ASSERT_NOT_REACHED();
 					case InterruptMechanism::PIN:
-						if (!InterruptController::get().is_using_apic())
-							return InterruptController::get().get_free_irq();
-						if (auto ret = find_intx_interrupt(); !ret.is_error())
-							return ret.release_value();
+						if (InterruptController::get().is_using_apic())
+						{
+							if (auto ret = find_intx_interrupt(); !ret.is_error())
+								return ret.release_value();
+						}
+						else
+						{
+							if (const uint8_t irq = read_byte(PCI_REG_IRQ_LINE); irq != 0xFF)
+								if (!InterruptController::get().reserve_irq(irq, true).is_error())
+									return irq;
+						}
 						return {};
 					case InterruptMechanism::MSI:
 					case InterruptMechanism::MSIX:
