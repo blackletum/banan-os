@@ -58,7 +58,7 @@ namespace Kernel
 		BAN::ErrorOr<void> initialize();
 
 		void reschedule(YieldRegisters*);
-		void reschedule_if_idle();
+		void reschedule_if_needed();
 
 		void on_timer_interrupt();
 		void on_yield(YieldRegisters*);
@@ -117,6 +117,8 @@ namespace Kernel
 		uint64_t m_idle_ns { 0 };
 
 		bool m_should_calculate_max_load_threads { true };
+
+		bool m_has_pending_reschedule { false };
 
 		Thread* m_idle_thread { nullptr };
 

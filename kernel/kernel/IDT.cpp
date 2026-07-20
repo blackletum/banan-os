@@ -413,10 +413,14 @@ namespace Kernel
 
 	extern "C" void cpp_ipi_handler()
 	{
-		ASSERT(InterruptController::get().is_in_service(IRQ_IPI - IRQ_VECTOR_BASE));
-		InterruptController::get().eoi(IRQ_IPI - IRQ_VECTOR_BASE);
+		if (!InterruptController::get().is_in_service(IRQ_IPI - IRQ_VECTOR_BASE))
+			return;
+
 		Processor::handle_ipi();
-		Processor::scheduler().reschedule_if_idle();
+
+		InterruptController::get().eoi(IRQ_IPI - IRQ_VECTOR_BASE);
+
+		Processor::scheduler().reschedule_if_needed();
 	}
 
 	extern "C" void cpp_timer_handler()
@@ -429,13 +433,17 @@ namespace Kernel
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
 
-		ASSERT(InterruptController::get().is_in_service(IRQ_TIMER - IRQ_VECTOR_BASE));
-		InterruptController::get().eoi(IRQ_TIMER - IRQ_VECTOR_BASE);
+		if (!InterruptController::get().is_in_service(IRQ_TIMER - IRQ_VECTOR_BASE))
+			return;
 
 		if (Processor::current_is_bsp())
 			Process::update_alarm_queue();
 
 		Processor::scheduler().on_timer_interrupt();
+
+		InterruptController::get().eoi(IRQ_TIMER - IRQ_VECTOR_BASE);
+
+		Processor::scheduler().reschedule_if_needed();
 	}
 
 	extern "C" void cpp_irq_handler(uint32_t irq)
@@ -453,15 +461,14 @@ namespace Kernel
 		if (!InterruptController::get().is_in_service(irq))
 			return;
 
-		InterruptController::get().eoi(irq);
 		if (auto* handler = s_interruptables[irq])
 			handler->handle_irq();
 		else
 			dprintln("no handler for irq 0x{2H}", irq);
 
-		Processor::scheduler().reschedule_if_idle();
+		InterruptController::get().eoi(irq);
 
-		ASSERT(Thread::current().state() != Thread::State::Terminated);
+		Processor::scheduler().reschedule_if_needed();
 	}
 
 	extern "C" void cpp_check_signal()

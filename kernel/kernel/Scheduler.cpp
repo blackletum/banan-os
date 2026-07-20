@@ -332,12 +332,15 @@ namespace Kernel
 		static_cast<APIC&>(interrupt_controller).set_timer_dealine(deadline_ns);
 	}
 
-	void Scheduler::reschedule_if_idle()
+	void Scheduler::reschedule_if_needed()
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
-		if (m_current == nullptr && !m_run_queue.empty())
+		if ((is_idle() && !m_run_queue.empty()) || m_has_pending_reschedule)
+		{
+			m_has_pending_reschedule = false;
 			Processor::yield();
+		}
 	}
 
 	extern "C" void scheduler_on_yield_trampoline(YieldRegisters* yield_registers)
@@ -366,7 +369,7 @@ namespace Kernel
 		// NOTE: yield will update the timer deadline, but if we do not yield make sure
 		//       we set the next deadline or we won't get another timer interrupt
 		if (is_idle() || SystemTimer::get().ns_since_boot() >= m_next_reschedule_ns)
-			Processor::yield();
+			m_has_pending_reschedule = true;
 		else
 			update_wake_up_deadline();
 	}
