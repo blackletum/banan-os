@@ -487,17 +487,12 @@ namespace Kernel
 		write_to_local_apic(LAPIC_EIO_REG, 0);
 	}
 
-	void APIC::enable_irq(uint8_t irq)
+	void APIC::enable_irq(uint8_t irq, bool level_triggered)
 	{
 		SpinLockGuard _(m_lock);
 
 		const uint32_t gsi = m_irq_overrides[irq];
-
-		{
-			int byte = gsi / 8;
-			int bit  = gsi % 8;
-			ASSERT(m_reserved_gsis[byte] & (1 << bit));
-		}
+		ASSERT(m_used_gsis[gsi / 8] & (1 << (gsi % 8)));
 
 		IOAPIC* ioapic = nullptr;
 		for (IOAPIC& io : m_io_apics)
@@ -515,27 +510,27 @@ namespace Kernel
 		RedirectionEntry redir;
 		redir.lo_dword = ioapic->read(IOAPIC_REDIRS + pin * 2);
 		redir.hi_dword = ioapic->read(IOAPIC_REDIRS + pin * 2 + 1);
-		ASSERT(redir.mask); // TODO: handle overlapping interrupts
 
+		redir.trigger_mode = level_triggered;
 		redir.vector = IRQ_VECTOR_BASE + irq;
 		redir.mask = 0;
 		// FIXME: distribute IRQs more evenly?
 		redir.destination = Kernel::Processor::bsp_id().as_u32();
 
-		ioapic->write(IOAPIC_REDIRS + pin * 2,		redir.lo_dword);
-		ioapic->write(IOAPIC_REDIRS + pin * 2 + 1,	redir.hi_dword);
+		ioapic->write(IOAPIC_REDIRS + pin * 2,     redir.lo_dword);
+		ioapic->write(IOAPIC_REDIRS + pin * 2 + 1, redir.hi_dword);
 	}
 
 	bool APIC::is_in_service(uint8_t irq)
 	{
-		uint32_t dword = (irq + IRQ_VECTOR_BASE) / 32;
-		uint32_t bit = (irq + IRQ_VECTOR_BASE) % 32;
+		const uint32_t dword = (irq + IRQ_VECTOR_BASE) / 32;
+		const uint32_t bit   = (irq + IRQ_VECTOR_BASE) % 32;
 
-		uint32_t isr = read_from_local_apic(LAPIC_IS_REG + dword * 0x10);
+		const uint32_t isr = read_from_local_apic(LAPIC_IS_REG + dword * 0x10);
 		return isr & (1 << bit);
 	}
 
-	BAN::ErrorOr<void> APIC::reserve_irq(uint8_t irq)
+	BAN::ErrorOr<void> APIC::reserve_irq(uint8_t irq, bool shared)
 	{
 		SpinLockGuard _(m_lock);
 
@@ -557,20 +552,26 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		}
 
-		int byte = gsi / 8;
-		int bit  = gsi % 8;
-		if (m_reserved_gsis[byte] & (1 << bit))
+		const uint8_t byte =       gsi / 8;
+		const uint8_t mask = 1 << (gsi % 8);
+
+		if (!shared && (m_excl_gsis[byte] & mask))
 		{
-			dwarnln("GSI {} is already reserved (IRQ {})", gsi, irq);
-			return BAN::Error::from_errno(EFAULT);
+			dwarnln("GSI {} is already reserved as exclusive", gsi);
+			return BAN::Error::from_errno(EINVAL);
 		}
-		m_reserved_gsis[byte] |= 1 << bit;
+
+		m_used_gsis[byte] |= mask;
+
+		if (!shared)
+			m_excl_gsis[byte] |= mask;
+
 		return {};
 	}
 
 	// FIXME: rewrite gsi and vector reserving
 	//        this is a hack to allow direct GSI reservation
-	BAN::ErrorOr<uint8_t> APIC::reserve_gsi(uint32_t gsi)
+	BAN::ErrorOr<uint8_t> APIC::reserve_gsi(uint32_t gsi, bool shared)
 	{
 		size_t irq = 0;
 		for (; irq < 0x100; irq++)
@@ -583,7 +584,7 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		TRY(reserve_irq(irq));
+		TRY(reserve_irq(irq, shared));
 
 		return irq;
 	}
@@ -591,6 +592,7 @@ namespace Kernel
 	BAN::Optional<uint8_t> APIC::get_free_irq()
 	{
 		SpinLockGuard _(m_lock);
+
 		for (uint8_t irq = 0; irq < m_irq_count; irq++)
 		{
 			const uint8_t gsi = m_irq_overrides[irq];
@@ -608,13 +610,17 @@ namespace Kernel
 			if (!ioapic)
 				continue;
 
-			const uint8_t byte = gsi / 8;
-			const uint8_t bit  = gsi % 8;
-			if (m_reserved_gsis[byte] & (1 << bit))
+			const uint8_t byte =       gsi / 8;
+			const uint8_t mask = 1 << (gsi % 8);
+
+			if (m_used_gsis[byte] & mask)
 				continue;
-			m_reserved_gsis[byte] |= 1 << bit;
+			m_used_gsis[byte] |= mask;
+			m_excl_gsis[byte] |= mask;
+
 			return irq;
 		}
+
 		return {};
 	}
 

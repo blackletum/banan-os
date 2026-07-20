@@ -2,8 +2,6 @@
 #include <kernel/IO.h>
 #include <kernel/PIC.h>
 
-#include <string.h>
-
 #define PIC1_CMD	0x20
 #define PIC1_DATA	0x21
 #define PIC2_CMD	0xA0
@@ -76,48 +74,62 @@ namespace Kernel
 		IO::outb(PIC1_CMD, PIC_EOI);
 	}
 
-	void PIC::enable_irq(uint8_t irq)
+	void PIC::enable_irq(uint8_t irq, bool level_triggered)
 	{
-		SpinLockGuard _(m_lock);
-		ASSERT(irq < 16);
-		ASSERT(m_reserved_irqs & (1 << irq));
+		if (level_triggered)
+			dprintln("no level triggered IRQs with PIC, using edge triggered");
 
-		uint16_t port = PIC1_DATA;
-		if(irq >= 8)
-		{
-			port = PIC2_DATA;
+		SpinLockGuard _(m_lock);
+
+		ASSERT(irq < 16);
+		ASSERT(m_used_irqs & (1 << irq));
+
+		const uint16_t port = [&irq]() -> uint16_t {
+			if (irq < 8)
+				return PIC1_DATA;
 			irq -= 8;
-		}
+			return PIC2_DATA;
+		}();
+
 		IO::outb(port, IO::inb(port) & ~(1 << irq));
 	}
 
-	BAN::ErrorOr<void> PIC::reserve_irq(uint8_t irq)
+	BAN::ErrorOr<void> PIC::reserve_irq(uint8_t irq, bool shared)
 	{
 		if (irq >= 16)
 		{
 			dwarnln("PIC only supports 16 irqs");
 			return BAN::Error::from_errno(EFAULT);
 		}
+
 		SpinLockGuard _(m_lock);
-		if (m_reserved_irqs & (1 << irq))
+
+		if (!shared && (m_excl_irqs & (1 << irq)))
 		{
-			dwarnln("irq {} is already reserved", irq);
-			return BAN::Error::from_errno(EFAULT);
+			dwarnln("IRQ {} is already reserved as exclusive", irq);
+			return BAN::Error::from_errno(EINVAL);
 		}
-		m_reserved_irqs |= 1 << irq;
+
+		m_used_irqs |= 1 << irq;
+		if (!shared)
+			m_excl_irqs |= 1 << irq;
+
 		return {};
 	}
 
 	BAN::Optional<uint8_t> PIC::get_free_irq()
 	{
 		SpinLockGuard _(m_lock);
-		for (int irq = 0; irq < 16; irq++)
+
+		for (uint8_t irq = 0; irq < 16; irq++)
 		{
-			if (m_reserved_irqs & (1 << irq))
+			if (m_used_irqs & (1 << irq))
 				continue;
-			m_reserved_irqs |= 1 << irq;
+			m_used_irqs |= 1 << irq;
+			m_excl_irqs |= 1 << irq;
 			return irq;
 		}
+
 		return {};
 	}
 

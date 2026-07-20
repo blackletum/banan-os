@@ -10,10 +10,10 @@ namespace Kernel
 	{
 	public:
 		virtual void eoi(uint8_t) override;
-		virtual void enable_irq(uint8_t) override;
+		virtual void enable_irq(uint8_t, bool level_triggered) override;
 		virtual bool is_in_service(uint8_t) override;
 
-		virtual BAN::ErrorOr<void> reserve_irq(uint8_t irq) override;
+		virtual BAN::ErrorOr<void> reserve_irq(uint8_t irq, bool shared) override;
 		virtual BAN::Optional<uint8_t> get_free_irq() override;
 
 		virtual void initialize_multiprocessor() override;
@@ -29,7 +29,8 @@ namespace Kernel
 
 	private:
 		SpinLock m_lock;
-		uint16_t m_reserved_irqs { 1u << 2 };
+		uint16_t m_used_irqs { 1u << 2 };
+		uint16_t m_excl_irqs { 1u << 2 };
 
 		friend class InterruptController;
 	};

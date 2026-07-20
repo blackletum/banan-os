@@ -12,10 +12,10 @@ namespace Kernel
 	{
 	public:
 		virtual void eoi(uint8_t) override;
-		virtual void enable_irq(uint8_t) override;
+		virtual void enable_irq(uint8_t, bool level_triggered) override;
 		virtual bool is_in_service(uint8_t) override;
 
-		virtual BAN::ErrorOr<void> reserve_irq(uint8_t irq) override;
+		virtual BAN::ErrorOr<void> reserve_irq(uint8_t irq, bool shared) override;
 		virtual BAN::Optional<uint8_t> get_free_irq() override;
 
 		virtual void initialize_multiprocessor() override;
@@ -23,7 +23,7 @@ namespace Kernel
 		virtual void broadcast_ipi() override;
 		virtual void enable() override;
 
-		BAN::ErrorOr<uint8_t> reserve_gsi(uint32_t gsi);
+		BAN::ErrorOr<uint8_t> reserve_gsi(uint32_t gsi, bool shared = false);
 
 		void initialize_timer();
 		void set_timer_dealine(uint64_t ns);
@@ -71,7 +71,8 @@ namespace Kernel
 		Kernel::vaddr_t        m_local_apic_vaddr = 0;
 		BAN::Vector<IOAPIC>    m_io_apics;
 		uint8_t                m_irq_overrides[0x100] {};
-		uint8_t                m_reserved_gsis[m_irq_count / 8] {};
+		uint8_t                m_used_gsis[m_irq_count / 8] {};
+		uint8_t                m_excl_gsis[m_irq_count / 8] {};
 		uint64_t               m_lapic_timer_frequency_hz { 0 };
 	};
 
