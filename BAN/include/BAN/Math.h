@@ -85,11 +85,15 @@ namespace BAN::Math
 	template<unsigned_integral T>
 	inline constexpr int clz(T x)
 	{
-		if constexpr (sizeof(T) <= sizeof(unsigned))
+		if constexpr (sizeof(T) == sizeof(unsigned char))
+			return __builtin_clz(x) - 24;
+		if constexpr (sizeof(T) == sizeof(unsigned short))
+			return __builtin_clz(x) - 16;
+		if constexpr (sizeof(T) == sizeof(unsigned))
 			return __builtin_clz(x);
-		if constexpr (sizeof(T) <= sizeof(unsigned long))
+		if constexpr (sizeof(T) == sizeof(unsigned long))
 			return __builtin_clzl(x);
-		if constexpr (sizeof(T) <= sizeof(unsigned long long))
+		if constexpr (sizeof(T) == sizeof(unsigned long long))
 			return __builtin_clzll(x);
 	}
 
