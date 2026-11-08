@@ -2,9 +2,9 @@
 .set PG_READ_WRITE,	1<<1
 .set PG_PAGE_SIZE,	1<<7
 
-.set FB_WIDTH,	800
-.set FB_HEIGHT,	600
-.set FB_BPP,	32
+.set FB_WIDTH,  1280
+.set FB_HEIGHT, 800
+.set FB_BPP,    32
 
 #define KERNEL_OFFSET 0xFFFFFFFF80000000
 #define V2P(vaddr) ((vaddr) - KERNEL_OFFSET)
